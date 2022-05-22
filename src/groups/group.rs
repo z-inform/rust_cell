@@ -2,10 +2,16 @@ use super::block::Block;
 use super::Coord;
 use super::UCoord;
 
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 struct Group {
     global_coord: Coord,
     block: Block,
+}
+
+impl std::cmp::PartialEq for Group {
+    fn eq(&self, other: &Group) -> bool {
+        self.global_coord == other.global_coord && self.block == other.block
+    }
 }
 
 impl Group {
@@ -54,4 +60,67 @@ impl Group {
         };
         new
     }
+}
+
+#[test]
+fn group_merge() {
+    let block_first = Block {
+        x_size: 3,
+        y_size: 4,
+        data: vec![1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+    };
+    //0 0 0
+    //1 1 0
+    //1 1 1
+    //1 1 0
+    let group_first = Group {
+        global_coord: Coord { x: 1, y: 1 },
+        block: block_first,
+    };
+
+    let block_second = Block {
+        x_size: 5,
+        y_size: 3,
+        data: vec![0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0],
+    };
+    //0 1 1 1 0
+    //1 0 1 0 0
+    //0 0 1 1 0
+
+    let group_second = Group {
+        global_coord: Coord { x: -3, y: -1 },
+        block: block_second,
+    };
+
+    let result = group_first.merge(group_second);
+
+    let mut block_check = Block::new(7, 6);
+    //0 0 0 0 0 0 0
+    //0 0 0 0 1 1 0
+    //0 0 0 0 1 1 1
+    //0 1 1 1 1 1 0
+    //1 0 1 0 0 0 0
+    //0 0 1 1 0 0 0
+
+    block_check[(2, 0)] = 1;
+    block_check[(3, 0)] = 1;
+    block_check[(0, 1)] = 1;
+    block_check[(2, 1)] = 1;
+    block_check[(1, 2)] = 1;
+    block_check[(2, 2)] = 1;
+    block_check[(3, 2)] = 1;
+    block_check[(4, 2)] = 1;
+    block_check[(5, 2)] = 1;
+    block_check[(4, 3)] = 1;
+    block_check[(5, 3)] = 1;
+    block_check[(6, 3)] = 1;
+    block_check[(4, 4)] = 1;
+    block_check[(5, 4)] = 1;
+
+    let check = Group {
+        global_coord: Coord { x: -3, y: -1 },
+        block: block_check,
+    };
+
+    assert_eq!(result, check);
 }
