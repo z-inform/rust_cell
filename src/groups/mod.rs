@@ -12,4 +12,3 @@ pub struct UCoord {
     x: u32,
     y: u32,
 }
-
