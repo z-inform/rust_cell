@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Eq, Debug)]
+#[derive(Eq)]
 pub struct Block {
     pub x_size: u32,
     pub y_size: u32,
@@ -53,8 +53,29 @@ impl std::cmp::PartialEq for Block {
     }
 }
 
-impl Block {
+impl std::fmt::Debug for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\nSize [{} {}]\nData: \n ", self.x_size, self.y_size)?;
+        for _x in 0..self.x_size {
+            write!(f, " -")?;
+        }
+        write!(f, "\n")?;
+        for y in 1..=self.y_size {
+            write!(f, "| ")?;
+            for x in 0..self.x_size {
+                write!(f, "{} ", self[(x, self.y_size - y)])?;
+            }
+            write!(f, "|\n")?;
+        }
+        write!(f, " ")?;
+        for _x in 0..self.x_size {
+            write!(f, " -")?;
+        }
+        write!(f, "")
+    }
+}
 
+impl Block {
     pub fn new(x_size: u32, y_size: u32) -> Block {
         let x_size_checked = if x_size >= 3 { x_size } else { 3 };
         let y_size_checked = if y_size >= 3 { y_size } else { 3 };
@@ -170,12 +191,26 @@ impl Block {
 
     pub fn insert(&mut self, place: UCoord, other: &Block) {
         let mut new_x = place.x + other.x_size;
-        new_x = if new_x < self.x_size { self.x_size } else { new_x };
+        new_x = if new_x < self.x_size {
+            self.x_size
+        } else {
+            new_x
+        };
 
         let mut new_y = place.y + other.y_size;
-        new_y = if new_y < self.y_size { self.y_size } else { new_y };
+        new_y = if new_y < self.y_size {
+            self.y_size
+        } else {
+            new_y
+        };
 
         let mut new = Block::new(new_x, new_y);
+        for x in 0..self.x_size {
+            for y in 0..self.y_size {
+                new[(x, y)] = self[(x, y)];
+            }
+        }
+
         for x in 0..other.x_size {
             for y in 0..other.y_size {
                 new[(x + place.x, y + place.y)] = other[(x, y)]
@@ -210,7 +245,7 @@ fn block_mutability() {
 }
 
 #[test]
-fn count_neighbours() {
+fn block_count_neighbours() {
     let block = Block {
         x_size: 3,
         y_size: 3,
@@ -252,7 +287,7 @@ fn block_step() {
 }
 
 #[test]
-fn line_count() {
+fn block_line_count() {
     let block = Block {
         x_size: 3,
         y_size: 3,
@@ -271,7 +306,7 @@ fn line_count() {
 }
 
 #[test]
-fn need_expand() {
+fn block_need_expand() {
     let block = Block {
         x_size: 3,
         y_size: 3,
@@ -318,16 +353,13 @@ fn block_insert() {
     let insert = Block {
         x_size: 3,
         y_size: 4,
-        data: vec![0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1]
+        data: vec![0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1],
     };
     //0 1 1
-    //0 0 0 
+    //0 0 0
     //1 1 0
     //0 1 0
-    let place = UCoord {
-        x : 1,
-        y : 0
-    };
+    let place = UCoord { x: 1, y: 0 };
     block.insert(place, &insert);
 
     let mut result = Block::new(5, 5);
@@ -338,10 +370,30 @@ fn block_insert() {
     result[(3, 3)] = 1;
     //0 0 0 0 0
     //0 0 1 1 0
-    //0 0 0 0 0 
-    //0 1 1 0 0 
-    //0 0 1 0 0 
-
+    //0 0 0 0 0
+    //0 1 1 0 0
+    //0 0 1 0 0
     assert_eq!(block, result);
 
+    block.insert(UCoord { x: 5, y: 2 }, &insert);
+    result = Block::new(8, 6);
+    //0 0 0 0 0 0 1 1
+    //0 0 0 0 0 0 0 0
+    //0 0 1 1 0 1 1 0
+    //0 0 0 0 0 0 1 0
+    //0 1 1 0 0 0 0 0
+    //0 0 1 0 0 0 0 0
+    result[(2, 0)] = 1;
+    result[(1, 1)] = 1;
+    result[(2, 1)] = 1;
+    result[(2, 3)] = 1;
+    result[(3, 3)] = 1;
+
+    result[(5, 3)] = 1;
+    result[(6, 2)] = 1;
+    result[(6, 3)] = 1;
+    result[(6, 5)] = 1;
+    result[(7, 5)] = 1;
+
+    assert_eq!(block, result);
 }
