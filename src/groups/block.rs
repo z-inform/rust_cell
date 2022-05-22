@@ -47,6 +47,7 @@ impl std::cmp::PartialEq for Block {
 }
 
 impl Block {
+
     pub fn get(&self, index: UCoord) -> Option<&u8> {
         let linear_coord = index.y * self.x_size + index.x;
         self.data.get(linear_coord as usize)
@@ -107,6 +108,34 @@ impl Block {
         }
         *self = new_block;
     }
+
+    fn row_alive(&self, index_y : u32) -> u32 {
+        let mut count: u32 = 0;
+        for x in 0..self.x_size {
+            count += self[(x, index_y)] as u32;
+        }
+        count
+    }
+
+    fn column_alive(&self, index_x : u32) -> u32 {
+        let mut count: u32 = 0;
+        for y in 0..self.y_size {
+            count += self[(index_x, y)] as u32;
+        }
+        count
+    }
+
+    pub fn need_expand(&self) -> bool {
+        if self.column_alive(0) > 0 || self.column_alive(self.x_size - 1) > 0 {
+            return true
+        }
+
+        if self.row_alive(0) > 0 || self.row_alive(self.y_size - 1) > 0 {
+            return true
+        }
+
+        return false
+    }
 }
 
 #[test]
@@ -154,4 +183,32 @@ fn block_step() {
     block.block_step();
     let next_block = Block {x_size : 3, y_size : 3, data : vec![0, 1, 0, 1, 0, 1, 0, 1, 0]};
     assert_eq!(block, next_block);
+}
+
+#[test]
+fn line_count() {
+    let block = Block {x_size : 3, y_size : 3, data : vec![1, 0, 1, 1, 0, 1, 1, 1, 0]};
+    //1 1 0
+    //1 0 1
+    //1 0 1
+    assert_eq!(block.row_alive(0), 2);
+    assert_eq!(block.row_alive(1), 2);
+    assert_eq!(block.row_alive(2), 2);
+
+    assert_eq!(block.column_alive(0), 3);
+    assert_eq!(block.column_alive(1), 1);
+    assert_eq!(block.column_alive(2), 2);
+
+}
+
+#[test]
+fn need_expand() {
+    let block = Block {x_size : 3, y_size : 3, data : vec![1, 0, 1, 1, 0, 1, 1, 1, 0]};
+    //1 1 0
+    //1 0 1
+    //1 0 1
+    assert_eq!(block.need_expand(), true);
+
+    let block_no_expand = Block {x_size : 3, y_size : 3, data : vec![0, 0, 0, 0, 1, 0, 0, 0, 0]};
+    assert_eq!(block_no_expand.need_expand(), false)
 }
