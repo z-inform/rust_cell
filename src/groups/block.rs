@@ -218,6 +218,122 @@ impl Block {
         }
         *self = new;
     }
+
+    fn cut_empty(&mut self) -> Option<UCoord> {
+        let mut x_offset: u32 = 0;
+        let mut y_offset: u32 = 0;
+        let mut right_x_offset: u32 = 0;
+        let mut top_y_offset: u32 = 0;
+
+        loop {
+            //count empty columns from the left
+            if self.column_alive(x_offset) != 0 {
+                if x_offset != 0 {
+                    x_offset -= 1; //reserve one empty column for borders
+                }
+                break;
+            }
+            if x_offset == self.x_size - 1 {
+                //return if no alive cells in block
+                return Option::None;
+            }
+            x_offset += 1;
+        }
+
+        loop {
+            //count empty rows from the bottom
+            if self.row_alive(y_offset) != 0 {
+                if y_offset != 0 {
+                    y_offset -= 1; //reserve one empty row for borders
+                }
+                break;
+            }
+            y_offset += 1;
+        }
+
+        loop {
+            if self.column_alive(self.x_size - 1 - right_x_offset) != 0 {
+                if right_x_offset != 0 {
+                    right_x_offset -= 1;
+                }
+                break;
+            }
+            right_x_offset += 1;
+        }
+
+        loop {
+            if self.row_alive(self.y_size - 1 - top_y_offset) != 0 {
+                if top_y_offset != 0 {
+                    top_y_offset -= 1;
+                }
+                break;
+            }
+            top_y_offset += 1;
+        }
+
+        let new_x_size = self.x_size - x_offset - right_x_offset;
+        let new_y_size = self.y_size - y_offset - top_y_offset;
+
+        let mut new_block = Block::new(new_x_size, new_y_size);
+        for x in x_offset..self.x_size - right_x_offset {
+            for y in y_offset..self.y_size - top_y_offset {
+                new_block[(x - x_offset, y - y_offset)] = self[(x, y)];
+            }
+        }
+
+        *self = new_block;
+        Some(UCoord {
+            x: x_offset,
+            y: y_offset,
+        })
+    }
+
+    fn add_border(&mut self) -> Coord {
+        let left = match self.column_alive(0) {
+            0 => 0,
+            _ => 1,
+        };
+
+        let bottom = match self.row_alive(0) {
+            0 => 0,
+            _ => 1,
+        };
+
+        let right = match self.column_alive(self.x_size - 1) {
+            0 => 0,
+            _ => 1,
+        };
+
+        let top = match self.row_alive(self.y_size - 1) {
+            0 => 0,
+            _ => 1,
+        };
+
+        let mut new_block = Block::new(self.x_size + left + right, self.y_size + bottom + top);
+        for x in 0..self.x_size {
+            for y in 0..self.y_size {
+                new_block[(x + left, y + bottom)] = self[(x, y)];
+            }
+        }
+
+        *self = new_block;
+        Coord {
+            x: 0 - left as i64,
+            y: 0 - bottom as i64,
+        }
+    }
+
+    pub fn resize(&mut self) -> Option<Coord> {
+        let offset = match self.cut_empty() {
+            None => return None,
+            Some(val) => Coord {
+                x: val.x as i64,
+                y: val.y as i64,
+            },
+        };
+
+        Option::Some(offset + self.add_border())
+    }
 }
 
 #[test]
@@ -396,4 +512,93 @@ fn block_insert() {
     result[(7, 5)] = 1;
 
     assert_eq!(block, result);
+}
+
+#[test]
+fn block_cut_empty_empty() {
+    let mut block = Block::new(5, 5);
+    let result = block.cut_empty();
+    assert_eq!(result, Option::None);
+    assert_eq!(block, block);
+}
+
+#[test]
+fn block_cut_empty() {
+    let mut block = Block::new(8, 4);
+    block[(3, 0)] = 1;
+    block[(2, 1)] = 1;
+    block[(4, 1)] = 1;
+    block[(4, 3)] = 1;
+    //0 0 0 0 1 0 0 0
+    //0 0 0 0 0 0 0 0
+    //0 0 1 0 1 0 0 0
+    //0 0 0 1 0 0 0 0
+
+    let mut result_block = Block::new(5, 4);
+    // 0 0 0 1 0
+    // 0 0 0 0 0
+    // 0 1 0 1 0
+    // 0 0 1 0 0
+    result_block[(2, 0)] = 1;
+    result_block[(1, 1)] = 1;
+    result_block[(3, 1)] = 1;
+    result_block[(3, 3)] = 1;
+
+    assert_eq!(block.cut_empty(), Option::Some(UCoord { x: 1, y: 0 }));
+    assert_eq!(block, result_block);
+}
+
+#[test]
+fn block_borders() {
+    let mut block = Block::new(3, 4);
+    //0 0 0
+    //0 0 0
+    //1 0 0
+    //1 1 0
+    block[(0, 0)] = 1;
+    block[(1, 0)] = 1;
+    block[(0, 1)] = 1;
+
+    let result_offset = Coord { x: -1, y: -1 };
+    let mut result_block = Block::new(4, 5);
+    //0 0 0 0
+    //0 0 0 0
+    //0 1 0 0
+    //0 1 1 0
+    //0 0 0 0
+    result_block[(1, 1)] = 1;
+    result_block[(2, 1)] = 1;
+    result_block[(1, 2)] = 1;
+
+    assert_eq!(block.add_border(), result_offset);
+    assert_eq!(block, result_block);
+}
+
+#[test]
+fn block_resize() {
+    let mut block = Block::new(8, 4);
+    block[(3, 0)] = 1;
+    block[(2, 1)] = 1;
+    block[(4, 1)] = 1;
+    block[(4, 3)] = 1;
+    //0 0 0 0 1 0 0 0
+    //0 0 0 0 0 0 0 0
+    //0 0 1 0 1 0 0 0
+    //0 0 0 1 0 0 0 0
+
+    let mut result_block = Block::new(5, 6);
+    // 0 0 0 0 0
+    // 0 0 0 1 0
+    // 0 0 0 0 0
+    // 0 1 0 1 0
+    // 0 0 1 0 0
+    // 0 0 0 0 0
+    result_block[(2, 1)] = 1;
+    result_block[(1, 2)] = 1;
+    result_block[(3, 2)] = 1;
+    result_block[(3, 4)] = 1;
+
+    let coord = Coord { x: 1, y: -1 };
+    assert_eq!(block.resize(), Option::Some(coord));
+    assert_eq!(block, result_block);
 }
