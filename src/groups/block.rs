@@ -77,12 +77,10 @@ impl std::fmt::Debug for Block {
 
 impl Block {
     pub fn new(x_size: u32, y_size: u32) -> Block {
-        let x_size_checked = if x_size >= 3 { x_size } else { 3 };
-        let y_size_checked = if y_size >= 3 { y_size } else { 3 };
-        let linear_size = x_size_checked * y_size_checked;
+        let linear_size = x_size * y_size;
         let mut new_block = Block {
-            x_size: x_size_checked,
-            y_size: y_size_checked,
+            x_size: x_size,
+            y_size: y_size,
             data: std::vec::Vec::with_capacity(linear_size as usize),
         };
         new_block.data.resize(linear_size as usize, 0);
@@ -334,271 +332,429 @@ impl Block {
 
         Option::Some(offset + self.add_border())
     }
+
+    fn split(mut self) -> Option<Vec<(Block, Coord)>> {
+        let resize_offset = match self.resize() {
+            None => return Option::None,
+            Some(i) => i,
+        };
+
+        let mut vert_splits: Vec<u32> = Vec::new();
+
+        for x in 1..self.x_size - 1 {
+            if self.column_alive(x) == 0 && self.column_alive(x - 1) == 0 {
+                vert_splits.push(x);
+            }
+        }
+
+        let mut pieces = Vec::new();
+
+        for x in vert_splits.iter().rev() {
+            let mut piece_column = self.cut_block_right(*x);
+            let mut horiz_splits = Vec::new();
+
+            for y in 1..self.y_size - 1 {
+                if piece_column.row_alive(y) == 0 && piece_column.row_alive(y - 1) == 0 {
+                    horiz_splits.push(y);
+                }
+            }
+
+            for y in horiz_splits.iter().rev() {
+                let mut piece = piece_column.cut_block_top(*y);
+                let fin_offset = piece.resize().unwrap() + resize_offset + UCoord { x: *x, y: *y }.into();
+                pieces.push((piece, fin_offset));
+            }
+            
+            let fin_offset = piece_column.resize().unwrap() + resize_offset + UCoord { x: *x, y: 0 }.into();
+            pieces.push((piece_column, fin_offset));
+        }
+
+        if let Some(i) = self.resize() {
+            let fin_offset = i + resize_offset;
+            pieces.push((self, fin_offset));
+        }
+
+        Some(pieces)
+    }
+
+    fn cut_block_top(&mut self, cut_line: u32) -> Block {
+        let mut piece = Block::new(self.x_size, self.y_size - cut_line);
+        for x in 0..piece.x_size {
+            for y in 0..piece.y_size {
+                piece[(x, y)] = self[(x, y + cut_line)];
+            }
+        }
+        self.y_size = cut_line;
+        self.data.truncate((self.x_size * self.y_size) as usize);
+        piece
+    }
+
+    fn cut_block_right(&mut self, cut_line: u32) -> Block {
+        let mut piece = Block::new(self.x_size - cut_line, self.y_size);
+        for x in 0..piece.x_size {
+            for y in 0..piece.y_size {
+                piece[(x, y)] = self[(x + cut_line, y)];
+            }
+        }
+        let mut temp_block = Block::new(cut_line, self.y_size);
+        for x in 0..temp_block.x_size {
+            for y in 0..temp_block.y_size {
+                temp_block[(x, y)] = self[(x, y)];
+            }
+        }
+        *self = temp_block;
+        piece
+    }
 }
 
-#[test]
-fn block_indexing() {
-    let block = Block {
-        x_size: 2,
-        y_size: 2,
-        data: vec![0, 1, 1, 0],
-    };
-    assert_eq!(block[(0, 0)], 0);
-    assert_eq!(block[(0, 1)], 1);
-    assert_eq!(block[(1, 0)], 1);
-    assert_eq!(block[(1, 1)], 0);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn block_indexing() {
+        let block = Block {
+            x_size: 2,
+            y_size: 2,
+            data: vec![0, 1, 1, 0],
+        };
+        assert_eq!(block[(0, 0)], 0);
+        assert_eq!(block[(0, 1)], 1);
+        assert_eq!(block[(1, 0)], 1);
+        assert_eq!(block[(1, 1)], 0);
+    }
 
-#[test]
-fn block_mutability() {
-    let mut block = Block {
-        x_size: 2,
-        y_size: 2,
-        data: vec![0, 1, 1, 0],
-    };
-    block[(0, 1)] = 1;
-    assert_eq!(block[(0, 1)], 1);
-}
+    #[test]
+    fn block_mutability() {
+        let mut block = Block {
+            x_size: 2,
+            y_size: 2,
+            data: vec![0, 1, 1, 0],
+        };
+        block[(0, 1)] = 1;
+        assert_eq!(block[(0, 1)], 1);
+    }
 
-#[test]
-fn block_count_neighbours() {
-    let block = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![1, 0, 1, 0, 0, 1, 1, 1, 0],
-    };
-    //1 1 0
-    //0 0 1
-    //1 0 1
-
-    assert_eq!(block.neighbour_count(UCoord { x: 0, y: 0 }), 0, "Coord 0;0");
-    assert_eq!(block.neighbour_count(UCoord { x: 1, y: 0 }), 3, "Coord 1;0");
-    assert_eq!(block.neighbour_count(UCoord { x: 2, y: 0 }), 1, "Coord 2;0");
-    assert_eq!(block.neighbour_count(UCoord { x: 0, y: 1 }), 3, "Coord 0;1");
-    assert_eq!(block.neighbour_count(UCoord { x: 1, y: 1 }), 5, "Coord 2;1");
-    assert_eq!(block.neighbour_count(UCoord { x: 2, y: 1 }), 2, "Coord 3;1");
-    assert_eq!(block.neighbour_count(UCoord { x: 0, y: 2 }), 1, "Coord 0;2");
-    assert_eq!(block.neighbour_count(UCoord { x: 1, y: 2 }), 2, "Coord 1;2");
-    assert_eq!(block.neighbour_count(UCoord { x: 2, y: 2 }), 2, "Coord 2;2");
-}
-
-#[test]
-fn block_step() {
-    let mut block = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![1, 0, 1, 0, 0, 1, 1, 1, 0],
-    };
-    //1 1 0
-    //0 0 1
-    //1 0 1
-    assert_eq!(block.neighbour_count(UCoord { x: 1, y: 0 }), 3);
-    block.block_step();
-    let next_block = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![0, 1, 0, 1, 0, 1, 0, 1, 0],
-    };
-    assert_eq!(block, next_block);
-}
-
-#[test]
-fn block_line_count() {
-    let block = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![1, 0, 1, 1, 0, 1, 1, 1, 0],
-    };
-    //1 1 0
-    //1 0 1
-    //1 0 1
-    assert_eq!(block.row_alive(0), 2);
-    assert_eq!(block.row_alive(1), 2);
-    assert_eq!(block.row_alive(2), 2);
-
-    assert_eq!(block.column_alive(0), 3);
-    assert_eq!(block.column_alive(1), 1);
-    assert_eq!(block.column_alive(2), 2);
-}
-
-#[test]
-fn block_need_expand() {
-    let block = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![1, 0, 1, 1, 0, 1, 1, 1, 0],
-    };
-    //1 1 0
-    //1 0 1
-    //1 0 1
-    assert_eq!(block.need_expand(), true);
-
-    let block_no_expand = Block {
-        x_size: 3,
-        y_size: 3,
-        data: vec![0, 0, 0, 0, 1, 0, 0, 0, 0],
-    };
-    assert_eq!(block_no_expand.need_expand(), false)
-}
-
-#[test]
-fn block_new() {
-    let mut block = Block::new(3, 3);
-    assert_eq!(
-        block,
-        Block {
+    #[test]
+    fn block_count_neighbours() {
+        let block = Block {
             x_size: 3,
             y_size: 3,
-            data: vec![0; 9]
-        }
-    );
-    block[(1, 1)] = 1;
-    assert_eq!(
-        block,
-        Block {
+            data: vec![1, 0, 1, 0, 0, 1, 1, 1, 0],
+        };
+        //1 1 0
+        //0 0 1
+        //1 0 1
+
+        assert_eq!(block.neighbour_count(UCoord { x: 0, y: 0 }), 0, "Coord 0;0");
+        assert_eq!(block.neighbour_count(UCoord { x: 1, y: 0 }), 3, "Coord 1;0");
+        assert_eq!(block.neighbour_count(UCoord { x: 2, y: 0 }), 1, "Coord 2;0");
+        assert_eq!(block.neighbour_count(UCoord { x: 0, y: 1 }), 3, "Coord 0;1");
+        assert_eq!(block.neighbour_count(UCoord { x: 1, y: 1 }), 5, "Coord 2;1");
+        assert_eq!(block.neighbour_count(UCoord { x: 2, y: 1 }), 2, "Coord 3;1");
+        assert_eq!(block.neighbour_count(UCoord { x: 0, y: 2 }), 1, "Coord 0;2");
+        assert_eq!(block.neighbour_count(UCoord { x: 1, y: 2 }), 2, "Coord 1;2");
+        assert_eq!(block.neighbour_count(UCoord { x: 2, y: 2 }), 2, "Coord 2;2");
+    }
+
+    #[test]
+    fn block_step() {
+        let mut block = Block {
             x_size: 3,
             y_size: 3,
-            data: vec![0, 0, 0, 0, 1, 0, 0, 0, 0]
-        }
-    );
-}
+            data: vec![1, 0, 1, 0, 0, 1, 1, 1, 0],
+        };
+        //1 1 0
+        //0 0 1
+        //1 0 1
+        assert_eq!(block.neighbour_count(UCoord { x: 1, y: 0 }), 3);
+        block.block_step();
+        let next_block = Block {
+            x_size: 3,
+            y_size: 3,
+            data: vec![0, 1, 0, 1, 0, 1, 0, 1, 0],
+        };
+        assert_eq!(block, next_block);
+    }
 
-#[test]
-fn block_insert() {
-    let mut block = Block::new(5, 5);
-    let insert = Block {
-        x_size: 3,
-        y_size: 4,
-        data: vec![0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1],
-    };
-    //0 1 1
-    //0 0 0
-    //1 1 0
-    //0 1 0
-    let place = UCoord { x: 1, y: 0 };
-    block.insert(place, &insert);
+    #[test]
+    fn block_line_count() {
+        let block = Block {
+            x_size: 3,
+            y_size: 3,
+            data: vec![1, 0, 1, 1, 0, 1, 1, 1, 0],
+        };
+        //1 1 0
+        //1 0 1
+        //1 0 1
+        assert_eq!(block.row_alive(0), 2);
+        assert_eq!(block.row_alive(1), 2);
+        assert_eq!(block.row_alive(2), 2);
 
-    let mut result = Block::new(5, 5);
-    result[(2, 0)] = 1;
-    result[(1, 1)] = 1;
-    result[(2, 1)] = 1;
-    result[(2, 3)] = 1;
-    result[(3, 3)] = 1;
-    //0 0 0 0 0
-    //0 0 1 1 0
-    //0 0 0 0 0
-    //0 1 1 0 0
-    //0 0 1 0 0
-    assert_eq!(block, result);
+        assert_eq!(block.column_alive(0), 3);
+        assert_eq!(block.column_alive(1), 1);
+        assert_eq!(block.column_alive(2), 2);
+    }
 
-    block.insert(UCoord { x: 5, y: 2 }, &insert);
-    result = Block::new(8, 6);
-    //0 0 0 0 0 0 1 1
-    //0 0 0 0 0 0 0 0
-    //0 0 1 1 0 1 1 0
-    //0 0 0 0 0 0 1 0
-    //0 1 1 0 0 0 0 0
-    //0 0 1 0 0 0 0 0
-    result[(2, 0)] = 1;
-    result[(1, 1)] = 1;
-    result[(2, 1)] = 1;
-    result[(2, 3)] = 1;
-    result[(3, 3)] = 1;
+    #[test]
+    fn block_need_expand() {
+        let block = Block {
+            x_size: 3,
+            y_size: 3,
+            data: vec![1, 0, 1, 1, 0, 1, 1, 1, 0],
+        };
+        //1 1 0
+        //1 0 1
+        //1 0 1
+        assert_eq!(block.need_expand(), true);
 
-    result[(5, 3)] = 1;
-    result[(6, 2)] = 1;
-    result[(6, 3)] = 1;
-    result[(6, 5)] = 1;
-    result[(7, 5)] = 1;
+        let block_no_expand = Block {
+            x_size: 3,
+            y_size: 3,
+            data: vec![0, 0, 0, 0, 1, 0, 0, 0, 0],
+        };
+        assert_eq!(block_no_expand.need_expand(), false)
+    }
 
-    assert_eq!(block, result);
-}
+    #[test]
+    fn block_new() {
+        let mut block = Block::new(3, 3);
+        assert_eq!(
+            block,
+            Block {
+                x_size: 3,
+                y_size: 3,
+                data: vec![0; 9]
+            }
+        );
+        block[(1, 1)] = 1;
+        assert_eq!(
+            block,
+            Block {
+                x_size: 3,
+                y_size: 3,
+                data: vec![0, 0, 0, 0, 1, 0, 0, 0, 0]
+            }
+        );
+    }
 
-#[test]
-fn block_cut_empty_empty() {
-    let mut block = Block::new(5, 5);
-    let result = block.cut_empty();
-    assert_eq!(result, Option::None);
-    assert_eq!(block, block);
-}
+    #[test]
+    fn block_insert() {
+        let mut block = Block::new(5, 5);
+        let insert = Block {
+            x_size: 3,
+            y_size: 4,
+            data: vec![0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1],
+        };
+        //0 1 1
+        //0 0 0
+        //1 1 0
+        //0 1 0
+        let place = UCoord { x: 1, y: 0 };
+        block.insert(place, &insert);
 
-#[test]
-fn block_cut_empty() {
-    let mut block = Block::new(8, 4);
-    block[(3, 0)] = 1;
-    block[(2, 1)] = 1;
-    block[(4, 1)] = 1;
-    block[(4, 3)] = 1;
-    //0 0 0 0 1 0 0 0
-    //0 0 0 0 0 0 0 0
-    //0 0 1 0 1 0 0 0
-    //0 0 0 1 0 0 0 0
+        let mut result = Block::new(5, 5);
+        result[(2, 0)] = 1;
+        result[(1, 1)] = 1;
+        result[(2, 1)] = 1;
+        result[(2, 3)] = 1;
+        result[(3, 3)] = 1;
+        //0 0 0 0 0
+        //0 0 1 1 0
+        //0 0 0 0 0
+        //0 1 1 0 0
+        //0 0 1 0 0
+        assert_eq!(block, result);
 
-    let mut result_block = Block::new(5, 4);
-    // 0 0 0 1 0
-    // 0 0 0 0 0
-    // 0 1 0 1 0
-    // 0 0 1 0 0
-    result_block[(2, 0)] = 1;
-    result_block[(1, 1)] = 1;
-    result_block[(3, 1)] = 1;
-    result_block[(3, 3)] = 1;
+        block.insert(UCoord { x: 5, y: 2 }, &insert);
+        result = Block::new(8, 6);
+        //0 0 0 0 0 0 1 1
+        //0 0 0 0 0 0 0 0
+        //0 0 1 1 0 1 1 0
+        //0 0 0 0 0 0 1 0
+        //0 1 1 0 0 0 0 0
+        //0 0 1 0 0 0 0 0
+        result[(2, 0)] = 1;
+        result[(1, 1)] = 1;
+        result[(2, 1)] = 1;
+        result[(2, 3)] = 1;
+        result[(3, 3)] = 1;
 
-    assert_eq!(block.cut_empty(), Option::Some(UCoord { x: 1, y: 0 }));
-    assert_eq!(block, result_block);
-}
+        result[(5, 3)] = 1;
+        result[(6, 2)] = 1;
+        result[(6, 3)] = 1;
+        result[(6, 5)] = 1;
+        result[(7, 5)] = 1;
 
-#[test]
-fn block_borders() {
-    let mut block = Block::new(3, 4);
-    //0 0 0
-    //0 0 0
-    //1 0 0
-    //1 1 0
-    block[(0, 0)] = 1;
-    block[(1, 0)] = 1;
-    block[(0, 1)] = 1;
+        assert_eq!(block, result);
+    }
 
-    let result_offset = Coord { x: -1, y: -1 };
-    let mut result_block = Block::new(4, 5);
-    //0 0 0 0
-    //0 0 0 0
-    //0 1 0 0
-    //0 1 1 0
-    //0 0 0 0
-    result_block[(1, 1)] = 1;
-    result_block[(2, 1)] = 1;
-    result_block[(1, 2)] = 1;
+    #[test]
+    fn block_cut_empty_empty() {
+        let mut block = Block::new(5, 5);
+        let result = block.cut_empty();
+        assert_eq!(result, Option::None);
+        assert_eq!(block, block);
+    }
 
-    assert_eq!(block.add_border(), result_offset);
-    assert_eq!(block, result_block);
-}
+    #[test]
+    fn block_cut_empty() {
+        let mut block = Block::new(8, 4);
+        block[(3, 0)] = 1;
+        block[(2, 1)] = 1;
+        block[(4, 1)] = 1;
+        block[(4, 3)] = 1;
+        //0 0 0 0 1 0 0 0
+        //0 0 0 0 0 0 0 0
+        //0 0 1 0 1 0 0 0
+        //0 0 0 1 0 0 0 0
 
-#[test]
-fn block_resize() {
-    let mut block = Block::new(8, 4);
-    block[(3, 0)] = 1;
-    block[(2, 1)] = 1;
-    block[(4, 1)] = 1;
-    block[(4, 3)] = 1;
-    //0 0 0 0 1 0 0 0
-    //0 0 0 0 0 0 0 0
-    //0 0 1 0 1 0 0 0
-    //0 0 0 1 0 0 0 0
+        let mut result_block = Block::new(5, 4);
+        // 0 0 0 1 0
+        // 0 0 0 0 0
+        // 0 1 0 1 0
+        // 0 0 1 0 0
+        result_block[(2, 0)] = 1;
+        result_block[(1, 1)] = 1;
+        result_block[(3, 1)] = 1;
+        result_block[(3, 3)] = 1;
 
-    let mut result_block = Block::new(5, 6);
-    // 0 0 0 0 0
-    // 0 0 0 1 0
-    // 0 0 0 0 0
-    // 0 1 0 1 0
-    // 0 0 1 0 0
-    // 0 0 0 0 0
-    result_block[(2, 1)] = 1;
-    result_block[(1, 2)] = 1;
-    result_block[(3, 2)] = 1;
-    result_block[(3, 4)] = 1;
+        assert_eq!(block.cut_empty(), Option::Some(UCoord { x: 1, y: 0 }));
+        assert_eq!(block, result_block);
+    }
 
-    let coord = Coord { x: 1, y: -1 };
-    assert_eq!(block.resize(), Option::Some(coord));
-    assert_eq!(block, result_block);
+    #[test]
+    fn block_borders() {
+        let mut block = Block::new(3, 4);
+        //0 0 0
+        //0 0 0
+        //1 0 0
+        //1 1 0
+        block[(0, 0)] = 1;
+        block[(1, 0)] = 1;
+        block[(0, 1)] = 1;
+
+        let result_offset = Coord { x: -1, y: -1 };
+        let mut result_block = Block::new(4, 5);
+        //0 0 0 0
+        //0 0 0 0
+        //0 1 0 0
+        //0 1 1 0
+        //0 0 0 0
+        result_block[(1, 1)] = 1;
+        result_block[(2, 1)] = 1;
+        result_block[(1, 2)] = 1;
+
+        assert_eq!(block.add_border(), result_offset);
+        assert_eq!(block, result_block);
+    }
+
+    #[test]
+    fn block_resize() {
+        let mut block = Block::new(8, 4);
+        block[(3, 0)] = 1;
+        block[(2, 1)] = 1;
+        block[(4, 1)] = 1;
+        block[(4, 3)] = 1;
+        //0 0 0 0 1 0 0 0
+        //0 0 0 0 0 0 0 0
+        //0 0 1 0 1 0 0 0
+        //0 0 0 1 0 0 0 0
+
+        let mut result_block = Block::new(5, 6);
+        // 0 0 0 0 0
+        // 0 0 0 1 0
+        // 0 0 0 0 0
+        // 0 1 0 1 0
+        // 0 0 1 0 0
+        // 0 0 0 0 0
+        result_block[(2, 1)] = 1;
+        result_block[(1, 2)] = 1;
+        result_block[(3, 2)] = 1;
+        result_block[(3, 4)] = 1;
+
+        let coord = Coord { x: 1, y: -1 };
+        assert_eq!(block.resize(), Option::Some(coord));
+        assert_eq!(block, result_block);
+    }
+
+    #[test]
+    fn block_cut_top() {
+        let mut block = Block::new(3, 5);
+        //1 1 1
+        //0 1 0
+        //1 0 0
+        //1 0 0
+        //0 0 0
+        block[(0, 1)] = 1;
+        block[(0, 2)] = 1;
+        block[(0, 4)] = 1;
+        block[(1, 3)] = 1;
+        block[(1, 4)] = 1;
+        block[(2, 4)] = 1;
+
+        let mut piece_result = Block::new(3, 2);
+        piece_result[(1, 0)] = 1;
+        piece_result[(0, 1)] = 1;
+        piece_result[(1, 1)] = 1;
+        piece_result[(2, 1)] = 1;
+
+        let mut block_result = Block::new(3, 3);
+        block_result[(0, 1)] = 1;
+        block_result[(0, 2)] = 1;
+
+        assert_eq!(block.cut_block_top(3), piece_result);
+        assert_eq!(block, block_result);
+    }
+
+    #[test]
+    fn block_split() {
+        let mut block = Block::new(5, 5);
+        //0 0 0 1 1
+        //1 0 0 1 0
+        //1 0 0 0 0
+        //1 0 0 0 0
+        //0 0 0 1 1
+        block[(3, 0)] = 1;
+        block[(4, 0)] = 1;
+        block[(0, 1)] = 1;
+        block[(0, 2)] = 1;
+        block[(0, 3)] = 1;
+        block[(3, 3)] = 1;
+        block[(3, 4)] = 1;
+        block[(4, 4)] = 1;
+
+        let mut b1 = Block::new(3, 5);
+        //0 0 0 
+        //0 1 0 
+        //0 1 0
+        //0 1 0
+        //0 0 0
+        b1[(1, 1)] = 1;
+        b1[(1, 2)] = 1;
+        b1[(1, 3)] = 1;
+        let c1 = Coord { x: -1, y: 0 };
+
+        let mut b2 = Block::new(4, 3);
+        //0 0 0 0
+        //0 1 1 0
+        //0 0 0 0
+        b2[(1, 1)] = 1;
+        b2[(2, 1)] = 1;
+        let c2 = Coord { x: 2, y: -1 };
+
+        let mut b3 = Block::new(4, 4);
+        //0 0 0 0
+        //0 1 1 0
+        //0 1 0 0
+        //0 0 0 0
+        b3[(1, 1)] = 1;
+        b3[(1, 2)] = 1;
+        b3[(2, 2)] = 1;
+        let c3 = Coord { x: 2, y: 2};
+
+        let pieces = block.split().unwrap();
+        assert_eq!(pieces[0], (b3, c3));
+        assert_eq!(pieces[1], (b2, c2));
+        assert_eq!(pieces[2], (b1, c1));
+    }
 }

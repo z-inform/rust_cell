@@ -18,6 +18,15 @@ impl std::ops::Add for Coord {
     }
 }
 
+impl std::convert::From<UCoord> for Coord {
+    fn from(other: UCoord) -> Self {
+        Coord {
+            x: other.x as i64,
+            y: other.y as i64,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UCoord {
     x: u32,
