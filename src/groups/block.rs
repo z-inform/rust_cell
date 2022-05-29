@@ -136,7 +136,7 @@ impl Block {
         count
     }
 
-    pub fn block_step(&mut self) {
+    pub fn step(&mut self) {
         let length = self.x_size * self.y_size;
         let mut new_block = Block {
             data: std::vec::Vec::with_capacity(length as usize),
@@ -333,7 +333,7 @@ impl Block {
         Option::Some(offset + self.add_border())
     }
 
-    fn split(mut self) -> Option<Vec<(Block, Coord)>> {
+    pub fn split(mut self) -> Option<Vec<(Block, Coord)>> {
         let resize_offset = match self.resize() {
             None => return Option::None,
             Some(i) => i,
@@ -467,7 +467,7 @@ mod tests {
         //0 0 1
         //1 0 1
         assert_eq!(block.neighbour_count(UCoord { x: 1, y: 0 }), 3);
-        block.block_step();
+        block.step();
         let next_block = Block {
             x_size: 3,
             y_size: 3,

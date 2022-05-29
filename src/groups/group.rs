@@ -60,67 +60,92 @@ impl Group {
         };
         new
     }
+
+    pub fn split(self) -> Option<Vec<Group>> {
+        let blocks = match self.block.split() {
+            None => return None,
+            Some(i) => i,
+        };
+
+        let mut groups = Vec::new();
+        for i in blocks {
+            let piece = Group {
+                global_coord: i.1 + self.global_coord,
+                block: i.0,
+            };
+            groups.push(piece);
+        }
+        Some(groups)
+    }
+
+    pub fn step(mut self) -> Option<Vec<Group>> {
+        self.block.step();
+        self.split()
+    }
 }
 
-#[test]
-fn group_merge() {
-    let block_first = Block {
-        x_size: 3,
-        y_size: 4,
-        data: vec![1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0],
-    };
-    //0 0 0
-    //1 1 0
-    //1 1 1
-    //1 1 0
-    let group_first = Group {
-        global_coord: Coord { x: 1, y: 1 },
-        block: block_first,
-    };
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn group_merge() {
+        let block_first = Block {
+            x_size: 3,
+            y_size: 4,
+            data: vec![1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0],
+        };
+        //0 0 0
+        //1 1 0
+        //1 1 1
+        //1 1 0
+        let group_first = Group {
+            global_coord: Coord { x: 1, y: 1 },
+            block: block_first,
+        };
 
-    let block_second = Block {
-        x_size: 5,
-        y_size: 3,
-        data: vec![0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0],
-    };
-    //0 1 1 1 0
-    //1 0 1 0 0
-    //0 0 1 1 0
+        let block_second = Block {
+            x_size: 5,
+            y_size: 3,
+            data: vec![0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0],
+        };
+        //0 1 1 1 0
+        //1 0 1 0 0
+        //0 0 1 1 0
 
-    let group_second = Group {
-        global_coord: Coord { x: -3, y: -1 },
-        block: block_second,
-    };
+        let group_second = Group {
+            global_coord: Coord { x: -3, y: -1 },
+            block: block_second,
+        };
 
-    let result = group_first.merge(group_second);
+        let result = group_first.merge(group_second);
 
-    let mut block_check = Block::new(7, 6);
-    //0 0 0 0 0 0 0
-    //0 0 0 0 1 1 0
-    //0 0 0 0 1 1 1
-    //0 1 1 1 1 1 0
-    //1 0 1 0 0 0 0
-    //0 0 1 1 0 0 0
+        let mut block_check = Block::new(7, 6);
+        //0 0 0 0 0 0 0
+        //0 0 0 0 1 1 0
+        //0 0 0 0 1 1 1
+        //0 1 1 1 1 1 0
+        //1 0 1 0 0 0 0
+        //0 0 1 1 0 0 0
 
-    block_check[(2, 0)] = 1;
-    block_check[(3, 0)] = 1;
-    block_check[(0, 1)] = 1;
-    block_check[(2, 1)] = 1;
-    block_check[(1, 2)] = 1;
-    block_check[(2, 2)] = 1;
-    block_check[(3, 2)] = 1;
-    block_check[(4, 2)] = 1;
-    block_check[(5, 2)] = 1;
-    block_check[(4, 3)] = 1;
-    block_check[(5, 3)] = 1;
-    block_check[(6, 3)] = 1;
-    block_check[(4, 4)] = 1;
-    block_check[(5, 4)] = 1;
+        block_check[(2, 0)] = 1;
+        block_check[(3, 0)] = 1;
+        block_check[(0, 1)] = 1;
+        block_check[(2, 1)] = 1;
+        block_check[(1, 2)] = 1;
+        block_check[(2, 2)] = 1;
+        block_check[(3, 2)] = 1;
+        block_check[(4, 2)] = 1;
+        block_check[(5, 2)] = 1;
+        block_check[(4, 3)] = 1;
+        block_check[(5, 3)] = 1;
+        block_check[(6, 3)] = 1;
+        block_check[(4, 4)] = 1;
+        block_check[(5, 4)] = 1;
 
-    let check = Group {
-        global_coord: Coord { x: -3, y: -1 },
-        block: block_check,
-    };
-
-    assert_eq!(result, check);
+        let check = Group {
+            global_coord: Coord { x: -3, y: -1 },
+            block: block_check,
+        };
+        assert_eq!(result, check);
+    }
 }
