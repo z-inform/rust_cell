@@ -1,10 +1,10 @@
-mod block;
-mod group;
+pub mod block;
+pub mod group;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Coord {
-    x: i64,
-    y: i64,
+    pub x: i64,
+    pub y: i64,
 }
 
 impl std::ops::Add for Coord {
@@ -29,6 +29,6 @@ impl std::convert::From<UCoord> for Coord {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UCoord {
-    x: u32,
-    y: u32,
+    pub x: u32,
+    pub y: u32,
 }

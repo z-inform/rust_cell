@@ -1,9 +1,10 @@
 use super::block::Block;
 use super::Coord;
 use super::UCoord;
+use svg::node::element::Rectangle;
 
 #[derive(Debug, Eq)]
-struct Group {
+pub struct Group {
     global_coord: Coord,
     block: Block,
 }
@@ -81,6 +82,35 @@ impl Group {
     pub fn step(mut self) -> Option<Vec<Group>> {
         self.block.step();
         self.split()
+    }
+
+    pub fn svg_add(&self, mut doc: svg::Document) -> svg::Document {
+        let size = 10;
+        for x in 0..self.block.x_size {
+            for y in 0..self.block.y_size {
+                if self.block[(x, y)] == 1 {
+                    let mut cell = Rectangle::new();
+                    cell = cell
+                        .set("x", (self.global_coord.x + x as i64) * size)
+                        .set("y", (self.global_coord.y + y as i64) * size)
+                        .set("width", size)
+                        .set("height", size)
+                        .set("fill", "green")
+                        .set("stroke", "black")
+                        .set("stroke-width", 0.3);
+                    doc = doc.add(cell);
+                }
+            }
+        }
+        doc
+    }
+
+    pub fn new(global_coord: Coord, block: Block) -> Self {
+        let group = Group {
+            global_coord,
+            block,
+        };
+        group
     }
 }
 
