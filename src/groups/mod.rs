@@ -1,5 +1,6 @@
 pub mod block;
 pub mod group;
+pub mod field;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Coord {
@@ -31,4 +32,15 @@ impl std::convert::From<UCoord> for Coord {
 pub struct UCoord {
     pub x: u32,
     pub y: u32,
+}
+
+impl std::ops::Add for UCoord {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
 }
