@@ -2,7 +2,7 @@ pub mod block;
 pub mod group;
 pub mod field;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Coord {
     pub x: i64,
     pub y: i64,

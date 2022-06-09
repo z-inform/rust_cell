@@ -16,6 +16,18 @@ impl std::cmp::PartialEq for Group {
     }
 }
 
+impl std::cmp::PartialOrd for Group {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.global_coord.partial_cmp(&other.global_coord)
+    }
+}
+
+impl std::cmp::Ord for Group {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.global_coord.cmp(&other.global_coord)
+    }
+}
+
 impl RTreeObject for Group {
     type Envelope = AABB<(i64, i64)>;
 

@@ -39,7 +39,7 @@ fn main() {
     };
     test_field.field.push(group);
     for _i in 0..29126 {
-         test_field.step();
+         test_field = test_field.r_tree_step();
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);
@@ -52,4 +52,5 @@ fn main() {
         .set("fill", "blue");
     doc = doc.add(start);
     svg::save("life.svg", &doc).unwrap();
+    println!("{}", test_field.field.len());
 }

@@ -189,7 +189,6 @@ mod test {
         block
     }
 
-    //these won't work without a really strange way of comparing vectors
     #[test]
     #[ignore]
     fn cmp_steps_lidka() {
@@ -205,7 +204,7 @@ mod test {
             f2 = f2.r_tree_step();
         }
 
-        assert_eq!(f1.field, f2.field);
+        assert_eq!(f1.field.sort(), f2.field.sort());
     }
 
     #[test]
@@ -223,6 +222,6 @@ mod test {
             f2 = f2.r_tree_step();
         }
 
-        assert_eq!(f1.field, f2.field);
+        assert_eq!(f1.field.sort(), f2.field.sort());
     }
 }
