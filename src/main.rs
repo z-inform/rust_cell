@@ -1,7 +1,7 @@
 use rust_cell::groups::{block::Block, group::Group, Coord, field::Field};
 use svg::node::element::Rectangle;
 
-fn lidka() -> Block {
+fn lidka() -> Block { //29126 generations evolution
     let mut block = Block::new(11, 8);
     block[(1, 1)] = 1;
     block[(2, 1)] = 1;
@@ -19,7 +19,7 @@ fn lidka() -> Block {
     block
 }
 
-fn r_pentomino() -> Block {
+fn r_pentomino() -> Block { //1103 generations evolution
     let mut block = Block::new(5, 5);
     block[(1, 2)] = 1;
     block[(2, 1)] = 1;
@@ -32,14 +32,14 @@ fn r_pentomino() -> Block {
 fn main() {
     let coord = Coord { x: 0, y: 0 };
 
-    let mut group = Group::new(coord, r_pentomino());
+    let mut group = Group::new(coord, lidka());
     group.reverse_y();
     let mut test_field = Field {
         field: Vec::new(),
     };
     test_field.field.push(group);
-    for _i in 0..1103 {
-        test_field.step();
+    for _i in 0..29126 {
+         test_field.step();
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);

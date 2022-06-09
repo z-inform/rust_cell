@@ -229,7 +229,10 @@ impl Block {
         loop {
             //count empty columns from the left
             if self.column_alive(x_offset) != 0 {
-                break;
+				if x_offset != 0 {
+                    x_offset -= 1; //reserve one empty column for borders
+                }
+				break;
             }
             if x_offset == self.x_size - 1 {
                 //return if no alive cells in block
@@ -241,6 +244,9 @@ impl Block {
         loop {
             //count empty rows from the bottom
             if self.row_alive(y_offset) != 0 {
+				if y_offset != 0 {
+                    y_offset -= 1; //reserve one empty row for borders
+                }
                 break;
             }
             y_offset += 1;
@@ -248,6 +254,9 @@ impl Block {
 
         loop {
             if self.column_alive(self.x_size - 1 - right_x_offset) != 0 {
+				if right_x_offset != 0 {
+                    right_x_offset -= 1;
+                }
                 break;
             }
             right_x_offset += 1;
@@ -255,6 +264,9 @@ impl Block {
 
         loop {
             if self.row_alive(self.y_size - 1 - top_y_offset) != 0 {
+				if top_y_offset != 0 {
+                    top_y_offset -= 1;
+                }
                 break;
             }
             top_y_offset += 1;
@@ -595,7 +607,7 @@ mod tests {
 
     #[test]
     fn block_cut_empty() {
-        let mut block = Block::new(8, 6);
+        let mut block = Block::new(8, 4);
         block[(3, 0)] = 1;
         block[(2, 1)] = 1;
         block[(4, 1)] = 1;
@@ -605,17 +617,17 @@ mod tests {
         //0 0 1 0 1 0 0 0
         //0 0 0 1 0 0 0 0
 
-        let mut result_block = Block::new(3, 4);
-        // 0 0 1
-        // 0 0 0
-        // 1 0 1
-        // 0 1 0 
-        result_block[(1, 0)] = 1;
-        result_block[(0, 1)] = 1;
-        result_block[(2, 1)] = 1;
-        result_block[(2, 3)] = 1;
+        let mut result_block = Block::new(5, 4);
+        // 0 0 0 1 0
+        // 0 0 0 0 0
+        // 0 1 0 1 0 
+        // 0 0 1 0 0
+        result_block[(2, 0)] = 1;
+        result_block[(1, 1)] = 1;
+        result_block[(3, 1)] = 1;
+        result_block[(3, 3)] = 1;
 
-        assert_eq!(block.cut_empty(), Option::Some(UCoord { x: 2, y: 0 }));
+        assert_eq!(block.cut_empty(), Option::Some(UCoord { x: 1, y: 0 }));
         assert_eq!(block, result_block);
     }
 

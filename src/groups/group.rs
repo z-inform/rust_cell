@@ -2,6 +2,7 @@ use super::block::Block;
 use super::Coord;
 use super::UCoord;
 use svg::node::element::Rectangle;
+use rstar::{RTreeObject, AABB};
 
 #[derive(Debug, Eq)]
 pub struct Group {
@@ -12,6 +13,14 @@ pub struct Group {
 impl std::cmp::PartialEq for Group {
     fn eq(&self, other: &Group) -> bool {
         self.global_coord == other.global_coord && self.block == other.block
+    }
+}
+
+impl RTreeObject for Group {
+    type Envelope = AABB<(i64, i64)>;
+
+    fn envelope(&self) -> Self::Envelope {
+        AABB::from_corners(self.global_coord.into(), self.top_right().into())
     }
 }
 
@@ -35,7 +44,7 @@ impl Group {
         }
     }
 
-    pub fn merge(mut self, mut other: Group) -> Group {
+    pub fn merge(self, other: Group) -> Group {
         let left_bottom = Coord {
             x: std::cmp::min(self.global_coord.x, other.global_coord.x),
             y: std::cmp::min(self.global_coord.y, other.global_coord.y),
@@ -52,11 +61,8 @@ impl Group {
         };
 
         let mut new_block = Block::new(1, 1);
-        let self_cut = self.block.cut_empty().unwrap();
-        let other_cut = other.block.cut_empty().unwrap();
-        new_block.insert(self_offset + self_cut, &self.block);
-        new_block.insert(other_offset + other_cut, &other.block);
-        new_block.resize();
+        new_block.insert(self_offset, &self.block);
+        new_block.insert(other_offset, &other.block);
 
         let new = Group {
             global_coord: left_bottom,

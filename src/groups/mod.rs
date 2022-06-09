@@ -28,6 +28,12 @@ impl std::convert::From<UCoord> for Coord {
     }
 }
 
+impl std::convert::From<Coord> for (i64, i64) {
+    fn from(other: Coord) -> Self {
+        (other.x, other.y)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UCoord {
     pub x: u32,
