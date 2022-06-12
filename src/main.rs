@@ -1,5 +1,6 @@
 use rust_cell::groups::{block::Block, group::Group, Coord, field::Field};
 use svg::node::element::Rectangle;
+use rstar::RTree;
 
 fn lidka() -> Block { //29126 generations evolution
     let mut block = Block::new(11, 8);
@@ -35,11 +36,11 @@ fn main() {
     let mut group = Group::new(coord, lidka());
     group.reverse_y();
     let mut test_field = Field {
-        field: Vec::new(),
+        field: RTree::new(),
     };
-    test_field.field.push(group);
+    test_field.field.insert(group);
     for _i in 0..29126 {
-         test_field = test_field.r_tree_step();
+         test_field = test_field.step();
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);
@@ -52,5 +53,4 @@ fn main() {
         .set("fill", "blue");
     doc = doc.add(start);
     svg::save("life.svg", &doc).unwrap();
-    println!("{}", test_field.field.len());
 }
