@@ -1,5 +1,9 @@
+//! Contains [Block] struct and its methods
 use super::*;
 
+/// A rectangular block of cells with (u32, u32) or [UCoord] indexing.
+///
+/// After each game step it is resized and padded to have a 1-cell empty cell border
 #[derive(Eq)]
 pub struct Block {
     pub x_size: u32,
@@ -76,6 +80,7 @@ impl std::fmt::Debug for Block {
 }
 
 impl Block {
+    /// Creates a block with given size and allocs memory for its contents
     pub fn new(x_size: u32, y_size: u32) -> Block {
         let linear_size = x_size * y_size;
         let mut new_block = Block {
@@ -87,19 +92,25 @@ impl Block {
         new_block
     }
 
+    /// Safely gets a cell value by coordinates (uses [Vec::get](slice::get())
     pub fn get(&self, index: UCoord) -> Option<&u8> {
         let linear_coord = index.y * self.x_size + index.x;
         self.data.get(linear_coord as usize)
     }
 
+    /// Dumps block contents to stdout
     pub fn dump_data(&self) {
         for y in self.y_size..0 {
             for x in 0..self.x_size {
                 print!("{} ", self[(x, y)]);
             }
+            println!();
         }
     }
 
+    /// Returns number of alive cells in Moore neighbourhood
+    /// # Panics 
+    /// When index is out of bounds 
     pub fn neighbour_count(&self, index: UCoord) -> u8 {
         let mut count: u8 = 0;
         let y_start: i8 = if index.y == 0 { 0 } else { -1 };
@@ -136,6 +147,7 @@ impl Block {
         count
     }
 
+    /// Changes the state of the block to the next generations (does not change size)
     pub fn step(&mut self) {
         let length = self.x_size * self.y_size;
         let mut new_block = Block {
@@ -159,6 +171,9 @@ impl Block {
         *self = new_block;
     }
 
+    /// Counts alive cells in a row 
+    /// # Panics 
+    /// When index is out of bounds
     fn row_alive(&self, index_y: u32) -> u32 {
         let mut count: u32 = 0;
         for x in 0..self.x_size {
@@ -167,6 +182,9 @@ impl Block {
         count
     }
 
+    /// Counts alive cells in a column 
+    /// # Panics 
+    /// When index is out of bounds
     fn column_alive(&self, index_x: u32) -> u32 {
         let mut count: u32 = 0;
         for y in 0..self.y_size {
@@ -175,6 +193,7 @@ impl Block {
         count
     }
 
+    /// Checks if there are any alive cells on the border
     pub fn need_expand(&self) -> bool {
         if self.column_alive(0) > 0 || self.column_alive(self.x_size - 1) > 0 {
             return true;
@@ -187,6 +206,9 @@ impl Block {
         return false;
     }
 
+    /// Inserts other block in **self**. Resizes **self** if necessary
+    /// # Panics 
+    /// When insertion place is out of bounds 
     pub fn insert(&mut self, place: UCoord, other: &Block) {
         let mut new_x = place.x + other.x_size;
         new_x = if new_x < self.x_size {
@@ -220,6 +242,10 @@ impl Block {
         *self = new;
     }
 
+    /// Removes excessive empty rows/columns from the sides of the block
+    ///
+    /// If block had no alive cells returns [None]. Otherwise returns offset of bottom left corner of
+    /// block
     pub fn cut_empty(&mut self) -> Option<UCoord> {
         let mut x_offset: u32 = 0;
         let mut y_offset: u32 = 0;
@@ -229,10 +255,10 @@ impl Block {
         loop {
             //count empty columns from the left
             if self.column_alive(x_offset) != 0 {
-				if x_offset != 0 {
+                if x_offset != 0 {
                     x_offset -= 1; //reserve one empty column for borders
                 }
-				break;
+                break;
             }
             if x_offset == self.x_size - 1 {
                 //return if no alive cells in block
@@ -244,7 +270,7 @@ impl Block {
         loop {
             //count empty rows from the bottom
             if self.row_alive(y_offset) != 0 {
-				if y_offset != 0 {
+                if y_offset != 0 {
                     y_offset -= 1; //reserve one empty row for borders
                 }
                 break;
@@ -254,7 +280,7 @@ impl Block {
 
         loop {
             if self.column_alive(self.x_size - 1 - right_x_offset) != 0 {
-				if right_x_offset != 0 {
+                if right_x_offset != 0 {
                     right_x_offset -= 1;
                 }
                 break;
@@ -264,7 +290,7 @@ impl Block {
 
         loop {
             if self.row_alive(self.y_size - 1 - top_y_offset) != 0 {
-				if top_y_offset != 0 {
+                if top_y_offset != 0 {
                     top_y_offset -= 1;
                 }
                 break;
@@ -289,6 +315,9 @@ impl Block {
         })
     }
 
+    /// Adds empty cell borders to block
+    ///
+    /// Returns offset of bottom left corner of block 
     fn add_border(&mut self) -> Coord {
         let left = match self.column_alive(0) {
             0 => 0,
@@ -324,6 +353,10 @@ impl Block {
         }
     }
 
+    /// Performs all necessary changes to block size. Cuts excessive borders and adds them if
+    /// needed 
+    ///
+    /// Return [None] if block had no alive cells. Otherwise returns offset of bottom left corner
     pub fn resize(&mut self) -> Option<Coord> {
         let offset = match self.cut_empty() {
             None => return None,
@@ -336,6 +369,10 @@ impl Block {
         Option::Some(offset + self.add_border())
     }
 
+    /// Splits the block into not intersecting pieces. Consumes **self** 
+    ///
+    /// Returns [None] if block was empty. Otherwise returns vector of new blocks and their
+    /// offsets
     pub fn split(mut self) -> Option<Vec<(Block, Coord)>> {
         let resize_offset = match self.resize() {
             None => return Option::None,
@@ -353,7 +390,6 @@ impl Block {
 
         let mut pieces = Vec::new();
 
-
         for x in vert_splits.iter().rev() {
             let mut piece_column = self.cut_block_right(*x);
             let mut horiz_splits = Vec::new();
@@ -366,16 +402,16 @@ impl Block {
 
             for y in horiz_splits.iter().rev() {
                 let mut piece = piece_column.cut_block_top(*y);
-                let fin_offset = match piece.resize(){
+                let fin_offset = match piece.resize() {
                     None => continue,
-                    Some(i) => i + resize_offset + UCoord { x: *x, y: *y }.into()
+                    Some(i) => i + resize_offset + UCoord { x: *x, y: *y }.into(),
                 };
                 pieces.push((piece, fin_offset));
             }
-            
+
             let fin_offset = match piece_column.resize() {
                 None => continue,
-                Some(i) => i + resize_offset + UCoord { x: *x, y: 0 }.into()
+                Some(i) => i + resize_offset + UCoord { x: *x, y: 0 }.into(),
             };
             pieces.push((piece_column, fin_offset));
         }
@@ -383,6 +419,9 @@ impl Block {
         Some(pieces)
     }
 
+    /// Cuts block by a horizontal line. **Self** contains lower part. Returns upper part 
+    /// # Panics
+    /// When cut line is out of bounds
     fn cut_block_top(&mut self, cut_line: u32) -> Block {
         let mut piece = Block::new(self.x_size, self.y_size - cut_line);
         for x in 0..piece.x_size {
@@ -395,6 +434,9 @@ impl Block {
         piece
     }
 
+    /// Cuts block by a vertical line. **Self** contains left part. Returns right part 
+    /// # Panics
+    /// When cut line is out of bounds
     fn cut_block_right(&mut self, cut_line: u32) -> Block {
         let mut piece = Block::new(self.x_size - cut_line, self.y_size);
         for x in 0..piece.x_size {
@@ -620,7 +662,7 @@ mod tests {
         let mut result_block = Block::new(5, 4);
         // 0 0 0 1 0
         // 0 0 0 0 0
-        // 0 1 0 1 0 
+        // 0 1 0 1 0
         // 0 0 1 0 0
         result_block[(2, 0)] = 1;
         result_block[(1, 1)] = 1;
@@ -733,8 +775,8 @@ mod tests {
         block[(5, 4)] = 1;
 
         let mut b1 = Block::new(3, 5);
-        //0 0 0 
-        //0 1 0 
+        //0 0 0
+        //0 1 0
         //0 1 0
         //0 1 0
         //0 0 0
@@ -759,7 +801,7 @@ mod tests {
         b3[(1, 1)] = 1;
         b3[(1, 2)] = 1;
         b3[(2, 2)] = 1;
-        let c3 = Coord { x: 3, y: 2};
+        let c3 = Coord { x: 3, y: 2 };
 
         let pieces = block.split().unwrap();
         assert_eq!(pieces[0], (b3, c3));
@@ -794,7 +836,7 @@ mod tests {
         b3[(1, 1)] = 1;
         b3[(1, 2)] = 1;
         b3[(2, 2)] = 1;
-        let c3 = Coord { x: -1, y: 2};
+        let c3 = Coord { x: -1, y: 2 };
         let pieces = block.split().unwrap();
         assert_eq!(pieces[0], (b3, c3));
         assert_eq!(pieces[1], (b2, c2));
@@ -802,12 +844,12 @@ mod tests {
 
         let mut block = Block::new(1, 1);
         let mut b1 = Block::new(5, 6);
-        //0 0 0 0 0 
+        //0 0 0 0 0
         //0 0 1 0 0
         //0 1 0 1 0
         //0 1 0 1 0
         //0 0 1 0 0
-        //0 0 0 0 0 
+        //0 0 0 0 0
         b1[(1, 2)] = 1;
         b1[(1, 3)] = 1;
         b1[(2, 1)] = 1;
@@ -817,7 +859,7 @@ mod tests {
 
         let mut b2 = Block::new(5, 5);
         //0 0 0 0 0
-        //0 0 1 0 0 
+        //0 0 1 0 0
         //0 1 0 1 0
         //0 0 1 1 0
         //0 0 0 0 0
@@ -827,12 +869,11 @@ mod tests {
         b2[(3, 1)] = 1;
         b2[(3, 2)] = 1;
 
-        block.insert(UCoord {x: 0, y: 16}, &b1);
-        block.insert(UCoord {x: 3, y: 0}, &b2);
+        block.insert(UCoord { x: 0, y: 16 }, &b1);
+        block.insert(UCoord { x: 3, y: 0 }, &b2);
         let pieces = block.split().unwrap();
-        assert_eq!(pieces[1], (b2, Coord {x: 3, y: 0}));
-        assert_eq!(pieces[0], (b1, Coord {x: 0, y: 16}));
+        assert_eq!(pieces[1], (b2, Coord { x: 3, y: 0 }));
+        assert_eq!(pieces[0], (b1, Coord { x: 0, y: 16 }));
         assert_eq!(pieces.len(), 2);
-
     }
 }

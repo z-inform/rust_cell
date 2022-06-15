@@ -1,9 +1,11 @@
+//! Contains [Group] struct and its methods
 use super::block::Block;
 use super::Coord;
 use super::UCoord;
 use svg::node::element::Rectangle;
 use rstar::{RTreeObject, AABB};
 
+/// Contains cell data in [Block], global coords and other analysis data
 #[derive(Debug, Eq)]
 pub struct Group {
     pub global_coord: Coord,
@@ -37,6 +39,7 @@ impl RTreeObject for Group {
 }
 
 impl Group {
+    /// Returns global coordinates of top right corner of group
     pub fn top_right(&self) -> Coord {
         return Coord {
             x: self.global_coord.x + self.block.x_size as i64 - 1,
@@ -44,6 +47,7 @@ impl Group {
         };
     }
 
+    /// Checks if other group is intersecting **self**
     pub fn intersects(&self, other: &Group) -> bool {
         let self_tr = self.top_right();
         let other_tr = other.top_right();
@@ -56,6 +60,7 @@ impl Group {
         }
     }
 
+    /// Consumes two groups and returns new group containing both
     pub fn merge(self, other: Group) -> Group {
         let left_bottom = Coord {
             x: std::cmp::min(self.global_coord.x, other.global_coord.x),
@@ -83,6 +88,9 @@ impl Group {
         new
     }
 
+    /// Splits **self** (consumes it) into not intersecting pieces.
+    ///
+    /// Returns [None] if group is empty. Otherwise returns vector of new groups
     pub fn split(self) -> Option<Vec<Group>> {
         let blocks = match self.block.split() {
             None => return None,
@@ -100,11 +108,15 @@ impl Group {
         Some(groups)
     }
 
+    /// Advances **self** to next game generation. 
+    ///
+    /// Returns [None] if no alive cells remain. Otherwise returns vector of new independent groups
     pub fn step(mut self) -> Option<Vec<Group>> {
         self.block.step();
         self.split()
     }
 
+    /// Inserts group cells data into svg document
     pub fn svg_add(&self, mut doc: svg::Document) -> svg::Document {
         let size = 10;
         let group_rect = Rectangle::new()
@@ -135,6 +147,7 @@ impl Group {
         doc.add(group_rect)
     }
 
+    /// Creates a new group with given global coords and [Block]
     pub fn new(global_coord: Coord, block: Block) -> Self {
         let group = Group {
             global_coord,
@@ -143,6 +156,7 @@ impl Group {
         group
     }
 
+    /// Reverses group cells by y coord. Helps with the difference of global coordinates in (Field)[super::field::Field] and svg format
     pub fn reverse_y(&mut self) {
         let mut rev_block = Block::new(self.block.x_size, self.block.y_size);
         for x in 0..self.block.x_size {

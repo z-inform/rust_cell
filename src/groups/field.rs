@@ -1,3 +1,5 @@
+//! Contains [Field] struct and its methods
+
 use crate::groups::{group::Group, Coord};
 use rstar::{RTree, RTreeObject, AABB};
 use svg::node::element::Rectangle;
@@ -8,10 +10,12 @@ pub struct Field {
 }
 
 impl Field {
+    /// Returns a max size AABB. Used to drain all tree contents
     fn full_tree() -> AABB<(i64, i64)> {
         AABB::from_corners((i64::MIN, i64::MIN), (i64::MAX, i64::MAX))
     }
 
+    /// Prepares svg document for groups. Sets max/min coords and background color
     pub fn prep_svg(&self, mut doc: Document) -> Document {
         let bl = match self.bottom_left() {
             None => Coord { x: -50, y: -50 },
@@ -39,6 +43,7 @@ impl Field {
         )
     }
 
+    /// Returns global coords of bottom left corner of the active field
     pub fn bottom_left(&self) -> Option<Coord> {
         let mut bl = match self.field.iter().next() {
             None => return None,
@@ -56,6 +61,7 @@ impl Field {
         Some(bl)
     }
 
+    /// Returns global coords of top right corner of the active field
     pub fn top_right(&self) -> Option<Coord> {
         let mut tr = match self.field.iter().next() {
             None => return None,
@@ -74,6 +80,7 @@ impl Field {
         Some(tr)
     }
 
+    /// Inserts data of every group in Field into svg document
     pub fn svg_draw(&self, mut doc: Document) -> Document {
         for group in &self.field {
             doc = group.svg_add(doc);
@@ -81,6 +88,7 @@ impl Field {
         doc
     }
 
+    /// Advances [Field] to next game generation
     pub fn step(mut self) -> Self {
         let mut step_field = Vec::new();
         for group in self.field.drain_in_envelope(Field::full_tree()) {
@@ -119,6 +127,7 @@ impl Field {
         Field { field: tree }
     }
 
+    /// Drains **self** into [Vec]
     pub fn tree_to_vec(mut tree: RTree<Group>) -> Vec::<Group> {
         let mut field = Vec::new();
         for group in tree.drain_in_envelope(Field::full_tree()) {
@@ -130,7 +139,6 @@ impl Field {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use crate::groups::block::Block;
     fn lidka() -> Block {
         //29126 generations evolution

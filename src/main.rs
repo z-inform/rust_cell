@@ -1,8 +1,9 @@
-use rust_cell::groups::{block::Block, group::Group, Coord, field::Field};
-use svg::node::element::Rectangle;
 use rstar::RTree;
+use rust_cell::groups::{block::Block, field::Field, group::Group, Coord};
+use svg::node::element::Rectangle;
 
-fn lidka() -> Block { //29126 generations evolution
+/// Returns a block with Lidka predecessor (29126 generations lifespan)
+fn lidka() -> Block {
     let mut block = Block::new(11, 8);
     block[(1, 1)] = 1;
     block[(2, 1)] = 1;
@@ -20,7 +21,8 @@ fn lidka() -> Block { //29126 generations evolution
     block
 }
 
-fn r_pentomino() -> Block { //1103 generations evolution
+/// Returns a block with a r pentomino (1103 generations lifespan)
+fn r_pentomino() -> Block {
     let mut block = Block::new(5, 5);
     block[(1, 2)] = 1;
     block[(2, 1)] = 1;
@@ -40,7 +42,7 @@ fn main() {
     };
     test_field.field.insert(group);
     for _i in 0..29126 {
-         test_field = test_field.step();
+        test_field = test_field.step();
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);

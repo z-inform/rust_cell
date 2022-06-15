@@ -2,6 +2,7 @@ pub mod block;
 pub mod group;
 pub mod field;
 
+/// Used as a global coordinates (or offsets) of the playing field
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Coord {
     pub x: i64,
@@ -34,6 +35,7 @@ impl std::convert::From<Coord> for (i64, i64) {
     }
 }
 
+/// Used for indexing cells inside a group
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct UCoord {
     pub x: u32,
