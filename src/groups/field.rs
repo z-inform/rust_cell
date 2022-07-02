@@ -1,9 +1,34 @@
 //! Contains [Field] struct and its methods
 
 use crate::groups::{group::Group, Coord};
-use rstar::{RTree, RTreeObject, AABB};
+use rstar::{RTree, RTreeObject, AABB, Envelope};
 use svg::node::element::Rectangle;
 use svg::Document;
+
+///Selection function for R-tree that uses [Group::intersects_smart]
+struct SmartSelection<'a> {
+    data: &'a Group,
+}
+
+impl rstar::SelectionFunction<Group> for SmartSelection<'_> {
+    fn should_unpack_parent(&self, envelope: &AABB<(i64, i64)>) -> bool {
+        self.data.envelope().intersects(envelope)
+    }
+
+    fn should_unpack_leaf(&self, _leaf: &Group) -> bool {
+        self.data.intersects_smart(_leaf)
+    }
+}
+
+///Selection function for R-tree that accepts any element. Useful for popping a singular element
+///with RTree::remove_with_selection_function()
+struct AllSelection;
+
+impl<T: RTreeObject> rstar::SelectionFunction<T> for AllSelection {
+      fn should_unpack_parent(&self, _envelope: &T::Envelope) -> bool {
+          true
+      }
+}
 
 pub struct Field {
     pub field: RTree<Group>,
@@ -100,26 +125,31 @@ impl Field {
 
         let mut tree = RTree::bulk_load(step_field);
         loop {
-            let mut start_env = None;
-            for group in tree.iter() {
-                if tree
-                    .locate_in_envelope_intersecting(&group.envelope())
-                    .count()
-                    > 1
-                {
-                    start_env = Some(group.envelope());
-                }
-            }
-            if let Some(val) = start_env {
-                let mut new = None;
-                for piece in tree.drain_in_envelope_intersecting(val) {
-                    new = match new {
+            let mut merged_flag = false;
+            let mut field_vec = Vec::new();
+            loop {
+                let cur = match tree.remove_with_selection_function(AllSelection) {
+                    None => break,
+                    Some(val) => val,
+                };
+                let mut merged_group = None;
+                for piece in tree.drain_with_selection_function(SmartSelection {data: &cur}) {
+                    merged_group = match merged_group {
                         None => Some(piece),
-                        Some(new) => Some(new.merge(piece)),
-                    };
+                        Some(val) => Some(val.merge(piece)),
+                    }
                 }
-                tree.insert(new.unwrap());
-            } else {
+                if let Some(val) = merged_group {
+                    merged_flag = true;
+                    field_vec.push(val.merge(cur));
+                } else {
+                    field_vec.push(cur);
+                }
+                
+            }
+            assert_eq!(tree.iter().count(), 0);
+            tree = RTree::bulk_load(field_vec);
+            if merged_flag == false {
                 break;
             }
         }

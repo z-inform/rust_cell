@@ -2,8 +2,8 @@
 use super::block::Block;
 use super::Coord;
 use super::UCoord;
-use svg::node::element::Rectangle;
 use rstar::{RTreeObject, AABB};
+use svg::node::element::Rectangle;
 
 /// Contains cell data in [Block], global coords and other analysis data
 #[derive(Debug, Eq)]
@@ -108,7 +108,7 @@ impl Group {
         Some(groups)
     }
 
-    /// Advances **self** to next game generation. 
+    /// Advances **self** to next game generation.
     ///
     /// Returns [None] if no alive cells remain. Otherwise returns vector of new independent groups
     pub fn step(mut self) -> Option<Vec<Group>> {
@@ -156,7 +156,7 @@ impl Group {
         group
     }
 
-    /// Reverses group cells by y coord. Helps with the difference of global coordinates in (Field)[super::field::Field] and svg format
+    /// Reverses group cells by y coord. Helps with the difference of global coordinates in [Field](super::field::Field) and svg format
     pub fn reverse_y(&mut self) {
         let mut rev_block = Block::new(self.block.x_size, self.block.y_size);
         for x in 0..self.block.x_size {
@@ -169,6 +169,74 @@ impl Group {
             x: self.global_coord.x,
             y: -self.global_coord.y - self.block.y_size as i64 + 1,
         };
+    }
+
+    /// Checks if two groups intersect in a way, that it causes some new cells to be born. This is
+    /// useful to avoid merging pseudo- and quasi- <a href="https://conwaylife.com/wiki/Still_life" target="_blank">still lives</a>
+    /// or constellations
+    pub fn intersects_smart(&self, other: &Group) -> bool {
+        if self.intersects(other) == false {
+            return false;
+        }
+
+        let bl_intersection = Coord {
+            x: std::cmp::max(self.global_coord.x, other.global_coord.x),
+            y: std::cmp::max(self.global_coord.y, other.global_coord.y),
+        };
+
+        let tr_intersection = Coord {
+            x: std::cmp::min(self.top_right().x, other.top_right().x),
+            y: std::cmp::min(self.top_right().y, other.top_right().y),
+        };
+
+        for y in bl_intersection.y..=tr_intersection.y {
+            for x in bl_intersection.x..=tr_intersection.x {
+                let self_offset = UCoord {
+                    x: (x - self.global_coord.x) as u32,
+                    y: (y - self.global_coord.y) as u32,
+                };
+                let other_offset = UCoord {
+                    x: (x - other.global_coord.x) as u32,
+                    y: (y - other.global_coord.y) as u32,
+                };
+
+                let self_count = self.block.neighbour_count(self_offset);
+                let other_count = other.block.neighbour_count(other_offset);
+                let sum_count = self_count + other_count;
+    
+                let self_alive = match self.block[self_offset] {
+                    0 => false,
+                    _ => true,
+                };
+
+                let other_alive = match other.block[other_offset] {
+                    0 => false,
+                    _ => true,
+                };
+
+                if (self_count == 0) || (other_count == 0) {
+                    continue;
+                }
+
+                //if alive/born in one, but dead in sum - interfering
+                if (self_alive && self_count == 2) || (self_count == 3) || (other_alive && other_count == 2) || (other_count == 3) {
+                    if sum_count > 3 {
+                        return true;
+                    }
+                }
+
+                //if not alive in both, but alive in sum - interfering
+                if (!self_alive) && (!other_alive) && (sum_count == 3) {
+                    return true;
+                }
+
+                if ((self_alive) && (other_count > 0)) || ((other_alive) && (self_count > 0)) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -308,16 +376,86 @@ mod test {
             block,
         };
         let g1 = Group {
-            global_coord: Coord {x: 0, y: 16},
+            global_coord: Coord { x: 0, y: 16 },
             block: b1,
         };
         let g2 = Group {
-            global_coord: Coord {x: 3, y: 0},
+            global_coord: Coord { x: 3, y: 0 },
             block: b2,
         };
         let new = group.split().unwrap();
         assert_eq!(new[1], g2);
         assert_eq!(new[0], g1);
         assert_eq!(new.len(), 2);
+    }
+
+    #[test]
+    fn group_smart_intersection() {
+        let mut block1 = Block::new(5, 3);
+        block1[(1, 1)] = 1;
+        block1[(2, 1)] = 1;
+        block1[(3, 1)] = 1;
+        let group1 = Group {
+            global_coord: Coord { x: 0, y: 0 },
+            block: block1,
+        };
+
+        let mut block2 = Block::new(3, 5);
+        block2[(1, 1)] = 1;
+        block2[(1, 2)] = 1;
+        block2[(1, 3)] = 1;
+        let group2 = Group {
+            global_coord: Coord { x: 4, y: -4 },
+            block: block2,
+        };
+
+        assert_eq!(group1.intersects_smart(&group2), false);
+
+        block1 = Block::new(4, 4);
+        block1[(1, 1)] = 1;
+        block1[(1, 2)] = 1;
+        block1[(2, 1)] = 1;
+        block1[(2, 2)] = 1;
+        let group1 = Group {
+            global_coord: Coord { x: 0, y: 0 },
+            block: block1,
+        };
+
+        block2 = Block::new(4, 4);
+        block2[(1, 1)] = 1;
+        block2[(1, 2)] = 1;
+        block2[(2, 1)] = 1;
+        block2[(2, 2)] = 1;
+        let group2 = Group {
+            global_coord: Coord { x: 3, y: 0 },
+            block: block2,
+        };
+
+        assert_eq!(group1.intersects_smart(&group2), false);
+
+        let group1 = Group {
+            global_coord: Coord { x: 0, y: 0 },
+            block: Block::new(10, 10),
+        };
+
+        assert_eq!(group1.intersects_smart(&group2), false);
+
+        block1 = Block::new(3, 3);
+        block1[(1, 1)] = 1;
+        let group1 = Group {
+            global_coord: Coord { x: 0, y: 0 },
+            block: block1,
+        };
+
+        block2 = Block::new(3, 5);
+        block2[(1, 1)] = 1;
+        block2[(1, 2)] = 1;
+        let group2 = Group {
+            global_coord: Coord { x: 2, y: -2 },
+            block: block2,
+        };
+
+        assert_eq!(group1.intersects_smart(&group2), true);
+
     }
 }

@@ -41,7 +41,7 @@ fn main() {
         field: RTree::new(),
     };
     test_field.field.insert(group);
-    for _i in 0..29126 {
+    for _i in 0..29125 {
         test_field = test_field.step();
     }
     let mut doc = svg::Document::new();
