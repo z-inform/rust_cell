@@ -33,15 +33,58 @@ fn r_pentomino() -> Block {
 }
 
 fn main() {
+    let mut block;
+    let age;
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() < 2 {
+        println!("Not enough arguments");
+        return;
+    }
+    if args[1] == "help" {
+        println!("{}{}", "Use \"r-pentomino\" or \"lidka\" to run full length of that pattern. Optionally specify generation to stop at.\n",
+            "If no pattern name is provided, max generation is expected and RLE-formatted pattern will be read from stdin");
+        return;
+    }
+
+    if args[1] == "r-pentomino" {
+        block = r_pentomino();
+        age = match args.get(2) {
+            None => 1103,
+            Some(val) => val.parse().unwrap(),
+        };
+    } else if args[1] == "lidka" {
+        block = lidka();
+        age = match args.get(2) {
+            None => 29126,
+            Some(val) => val.parse().unwrap(),
+        };
+    } else if let Ok(val) = args[1].parse() {
+        age = val;
+        println!("Enter RLE pattern");
+        let mut buf = "".to_string();
+        loop {
+            match std::io::stdin().read_line(&mut buf) {
+                Ok(0) => break,
+                _ => (),
+            }
+        }
+        block = Block::rle_import(&buf).unwrap();
+        block.resize();
+    } else {
+        println!("Incorrect arguments\n");
+        return;
+    }
+
     let coord = Coord { x: 0, y: 0 };
 
-    let mut group = Group::new(coord, lidka());
+    let mut group = Group::new(coord, block);
     group.reverse_y();
     let mut test_field = Field {
         field: RTree::new(),
     };
     test_field.field.insert(group);
-    for _i in 0..29125 {
+    for _i in 0..age {
         test_field = test_field.step();
     }
     let mut doc = svg::Document::new();

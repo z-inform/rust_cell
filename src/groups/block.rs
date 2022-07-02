@@ -109,8 +109,8 @@ impl Block {
     }
 
     /// Returns number of alive cells in Moore neighbourhood
-    /// # Panics 
-    /// When index is out of bounds 
+    /// # Panics
+    /// When index is out of bounds
     pub fn neighbour_count(&self, index: UCoord) -> u8 {
         let mut count: u8 = 0;
         let y_start: i8 = if index.y == 0 { 0 } else { -1 };
@@ -171,8 +171,8 @@ impl Block {
         *self = new_block;
     }
 
-    /// Counts alive cells in a row 
-    /// # Panics 
+    /// Counts alive cells in a row
+    /// # Panics
     /// When index is out of bounds
     fn row_alive(&self, index_y: u32) -> u32 {
         let mut count: u32 = 0;
@@ -182,8 +182,8 @@ impl Block {
         count
     }
 
-    /// Counts alive cells in a column 
-    /// # Panics 
+    /// Counts alive cells in a column
+    /// # Panics
     /// When index is out of bounds
     fn column_alive(&self, index_x: u32) -> u32 {
         let mut count: u32 = 0;
@@ -207,8 +207,8 @@ impl Block {
     }
 
     /// Inserts other block in **self**. Resizes **self** if necessary
-    /// # Panics 
-    /// When insertion place is out of bounds 
+    /// # Panics
+    /// When insertion place is out of bounds
     pub fn insert(&mut self, place: UCoord, other: &Block) {
         let mut new_x = place.x + other.x_size;
         new_x = if new_x < self.x_size {
@@ -317,7 +317,7 @@ impl Block {
 
     /// Adds empty cell borders to block
     ///
-    /// Returns offset of bottom left corner of block 
+    /// Returns offset of bottom left corner of block
     fn add_border(&mut self) -> Coord {
         let left = match self.column_alive(0) {
             0 => 0,
@@ -354,7 +354,7 @@ impl Block {
     }
 
     /// Performs all necessary changes to block size. Cuts excessive borders and adds them if
-    /// needed 
+    /// needed
     ///
     /// Return [None] if block had no alive cells. Otherwise returns offset of bottom left corner
     pub fn resize(&mut self) -> Option<Coord> {
@@ -369,7 +369,7 @@ impl Block {
         Option::Some(offset + self.add_border())
     }
 
-    /// Splits the block into not intersecting pieces. Consumes **self** 
+    /// Splits the block into not intersecting pieces. Consumes **self**
     ///
     /// Returns [None] if block was empty. Otherwise returns vector of new blocks and their
     /// offsets
@@ -419,7 +419,7 @@ impl Block {
         Some(pieces)
     }
 
-    /// Cuts block by a horizontal line. **Self** contains lower part. Returns upper part 
+    /// Cuts block by a horizontal line. **Self** contains lower part. Returns upper part
     /// # Panics
     /// When cut line is out of bounds
     fn cut_block_top(&mut self, cut_line: u32) -> Block {
@@ -434,7 +434,7 @@ impl Block {
         piece
     }
 
-    /// Cuts block by a vertical line. **Self** contains left part. Returns right part 
+    /// Cuts block by a vertical line. **Self** contains left part. Returns right part
     /// # Panics
     /// When cut line is out of bounds
     fn cut_block_right(&mut self, cut_line: u32) -> Block {
@@ -455,6 +455,58 @@ impl Block {
         }
         *self = temp_block;
         piece
+    }
+
+    /// Imports a pattern from RLE string
+    pub fn rle_import(pattern: &str) -> Option<Block> {
+        let mut x_size = 0;
+        let mut y_size = 0;
+        for line in pattern.lines() {
+            if line.starts_with("#") {
+                continue;
+            }
+            if line.starts_with("x") {
+                for piece in line.split(',') {
+                    if let Some(val) = piece.strip_prefix("x = ") {
+                        x_size = val.parse().unwrap();
+                    }
+                    if let Some(val) = piece.strip_prefix(" y = ") {
+                        y_size = val.parse().unwrap();
+                    }
+                }
+                continue;
+            }
+            let mut y = 0;
+            let mut block = Block::new(x_size, y_size);
+            for piece in line.split("$") {
+                let mut x = 0;
+                let mut run_tag = 0;
+                for c in piece.chars() {
+                    if c.is_digit(10) {
+                        run_tag = run_tag * 10 + c.to_digit(10).unwrap();
+                    }
+                    if c.is_alphabetic() {
+                        if c == '!' {
+                            return Some(block);
+                        }
+                        if run_tag == 0 {
+                            run_tag = 1;
+                        }
+                        for _i in 0..run_tag {
+                            block[(x, y)] = match c {
+                                'b' => 0,
+                                _ => 1,
+                            };
+                            x += 1;
+                        }
+                        run_tag = 0;
+                    }
+                }
+                y += 1;
+            }
+            return Some(block);
+        }
+        None
     }
 }
 
@@ -875,5 +927,19 @@ mod tests {
         assert_eq!(pieces[1], (b2, Coord { x: 3, y: 0 }));
         assert_eq!(pieces[0], (b1, Coord { x: 0, y: 16 }));
         assert_eq!(pieces.len(), 2);
+    }
+
+    #[test]
+    fn block_rle_import() {
+        let pattern = "#C This is a glider.\nx = 3, y = 3\nbo$2bo$3o!".to_string();
+        let block = Block::rle_import(&pattern);
+        let mut glider = Block::new(3, 3);
+        glider[(1, 0)] = 1;
+        glider[(2, 1)] = 1;
+        glider[(0, 2)] = 1;
+        glider[(1, 2)] = 1;
+        glider[(2, 2)] = 1;
+
+        assert_eq!(glider, block.unwrap());
     }
 }
