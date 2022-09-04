@@ -4,6 +4,8 @@ use crate::groups::{group::Group, Coord};
 use rstar::{RTree, RTreeObject, AABB, Envelope};
 use svg::node::element::Rectangle;
 use svg::Document;
+use std::thread;
+use std::num::NonZeroUsize;
 
 ///Selection function for R-tree that uses [Group::intersects_smart]
 struct SmartSelection<'a> {
@@ -15,8 +17,8 @@ impl rstar::SelectionFunction<Group> for SmartSelection<'_> {
         self.data.envelope().intersects(envelope)
     }
 
-    fn should_unpack_leaf(&self, _leaf: &Group) -> bool {
-        self.data.intersects_smart(_leaf)
+    fn should_unpack_leaf(&self, leaf: &Group) -> bool {
+        self.data.intersects_smart(leaf)
     }
 }
 
@@ -51,7 +53,7 @@ pub struct Field {
 
 impl Field {
     /// Returns a max size AABB. Used to drain all tree contents
-    fn full_tree() -> AABB<(i64, i64)> {
+    pub fn full_tree() -> AABB<(i64, i64)> {
         AABB::from_corners((i64::MIN, i64::MIN), (i64::MAX, i64::MAX))
     }
 
@@ -138,11 +140,16 @@ impl Field {
             };
         }
 
-        let mut tree = RTree::bulk_load(step_field);
+		self.field = RTree::bulk_load(step_field);
+		self.merge();
+		self
+	}
+
+	pub fn merge(&mut self) {	
         loop {
             let mut merge_envelope = Option::<AABB<(i64, i64)>>::None;
-            for piece in tree.iter() {
-                if tree.locate_with_selection_function(SmartSelection{data: &piece}).count() > 1 {
+            for piece in self.field.iter() {
+                if self.field.locate_with_selection_function(SmartSelection{data: &piece}).count() > 1 {
                     merge_envelope = Some(piece.envelope()); 
                     break;
                 }
@@ -150,9 +157,9 @@ impl Field {
             if merge_envelope == None {
                 break;
             }
-            for cur in tree.drain_with_selection_function(EnvelopeSelection{data:&merge_envelope.unwrap()}).collect::<Vec<Group>>() {
+            for cur in self.field.drain_with_selection_function(EnvelopeSelection{data:&merge_envelope.unwrap()}).collect::<Vec<Group>>() {
                 let mut merge_group = None;
-                for piece in tree.drain_with_selection_function(SmartSelection{data: &cur}) {
+                for piece in self.field.drain_with_selection_function(SmartSelection{data: &cur}) {
                     merge_group = match merge_group {
                         None => Some(piece),
                         Some(val) => Some(val.merge(piece)),
@@ -162,11 +169,71 @@ impl Field {
                     None => Some(cur),
                     Some(val) => Some(val.merge(cur)),
                 };
-                tree.insert(merge_group.unwrap());                
+                self.field.insert(merge_group.unwrap());                
             }
         }
+    }
 
-        Field { field: tree }
+    /// Advances [Field] to next game generation, parallelized
+    pub fn step_parallel(mut self) -> Self {
+        let max_thread_count = match thread::available_parallelism() {
+            Ok(val) => val,
+            Err(_) => NonZeroUsize::new(1).unwrap(),
+        };
+    
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let mut handles = Vec::new();
+
+        let groups_per_thread = match self.field.size() / max_thread_count {
+            0 => 1,
+            val => val,
+        };
+
+        let mut groups : Vec<Group> = Vec::new();
+        for elem in self.field.drain_in_envelope(Field::full_tree()) {
+            groups.push(elem);
+        }
+
+        for _ in 0..max_thread_count.into() {
+            let tx_thread = tx.clone();
+            let mut groups_thread : Vec<Group> = Vec::new();
+            for _ in 0..groups_per_thread {
+                match groups.pop() {
+                    Some(val) => groups_thread.push(val),
+                    None => break,
+                };
+            }
+            let handle = thread::spawn(move || {
+                let mut thread_field = Vec::new();
+                for elem in groups_thread {
+					match elem.step() {
+						Some(mut val) => thread_field.append(&mut val),
+						None => continue,
+					};
+                }
+				tx_thread.send(thread_field).unwrap();
+            });
+
+			handles.push(handle);
+        }
+
+		for handle in handles {
+			handle.join().unwrap();
+		}
+	
+		drop(tx);
+
+		let mut step_field = Vec::new();
+		loop {
+			match rx.recv() {
+				Ok(mut val) => step_field.append(&mut val),
+				Err(_err) => break,
+			};
+		}
+
+		let mut field = Field {field : RTree::bulk_load(step_field)};
+		field.merge();
+		field
     }
 
     /// Drains **self** into [Vec]
@@ -179,7 +246,7 @@ impl Field {
     }
 }
 
-#[cfg(test)]
+ #[cfg(test)]
 mod test {
     use crate::groups::block::Block;
     fn lidka() -> Block {

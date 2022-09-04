@@ -85,7 +85,7 @@ fn main() {
     };
     test_field.field.insert(group);
     for _i in 0..age {
-        test_field = test_field.step();
+        test_field = test_field.step_parallel();
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);
