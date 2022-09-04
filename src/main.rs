@@ -49,23 +49,27 @@ fn main() {
         return;
     }
 
+    let mut arg_count = 1;
+
     if args[1] == "parallel" {
         parallel_flag = true; 
+        arg_count = 2;
     }
 
-    if args[1] == "r-pentomino" {
+
+    if args[arg_count] == "r-pentomino" {
         block = r_pentomino();
-        age = match args.get(2) {
+        age = match args.get(arg_count + 1) {
             None => 1103,
             Some(val) => val.parse().unwrap(),
         };
-    } else if args[1] == "lidka" {
+    } else if args[arg_count] == "lidka" {
         block = lidka();
-        age = match args.get(2) {
+        age = match args.get(arg_count + 1) {
             None => 29126,
             Some(val) => val.parse().unwrap(),
         };
-    } else if let Ok(val) = args[1].parse() {
+    } else if let Ok(val) = args[arg_count].parse() {
         age = val;
         println!("Enter RLE pattern");
         let mut buf = "".to_string();
