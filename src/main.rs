@@ -36,15 +36,21 @@ fn main() {
     let mut block;
     let age;
     let args: Vec<String> = std::env::args().collect();
+    let mut parallel_flag : bool = false;
 
     if args.len() < 2 {
         println!("Not enough arguments");
         return;
     }
     if args[1] == "help" {
-        println!("{}{}", "Use \"r-pentomino\" or \"lidka\" to run full length of that pattern. Optionally specify generation to stop at.\n",
-            "If no pattern name is provided, max generation is expected and RLE-formatted pattern will be read from stdin");
+        println!("{}{}{}", "Use \"r-pentomino\" or \"lidka\" to run full length of that pattern. Optionally specify generation to stop at.\n",
+                         "If no pattern name is provided, max generation is expected and RLE-formatted pattern will be read from stdin\n",
+                         "Specify \"parallel\" as first argument to run in multiple threads");
         return;
+    }
+
+    if args[1] == "parallel" {
+        parallel_flag = true; 
     }
 
     if args[1] == "r-pentomino" {
@@ -85,7 +91,11 @@ fn main() {
     };
     test_field.field.insert(group);
     for _i in 0..age {
-        test_field = test_field.step_parallel();
+        if parallel_flag {
+            test_field = test_field.step_parallel();
+        } else {
+            test_field = test_field.step();
+        }
     }
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);
