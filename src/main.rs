@@ -36,7 +36,7 @@ fn main() {
     let mut block;
     let age;
     let args: Vec<String> = std::env::args().collect();
-    let mut parallel_flag : bool = false;
+    let mut parallel_flag: bool = false;
 
     if args.len() < 2 {
         println!("Not enough arguments");
@@ -52,10 +52,9 @@ fn main() {
     let mut arg_count = 1;
 
     if args[1] == "parallel" {
-        parallel_flag = true; 
+        parallel_flag = true;
         arg_count = 2;
     }
-
 
     if args[arg_count] == "r-pentomino" {
         block = r_pentomino();
@@ -90,15 +89,13 @@ fn main() {
 
     let mut group = Group::new(coord, block);
     group.reverse_y();
-    let mut test_field = Field {
-        field: RTree::new(),
-    };
+    let mut test_field = Field::new(RTree::new());
     test_field.field.insert(group);
     for _i in 0..age {
         if parallel_flag {
-            test_field = test_field.step_parallel();
+            test_field.step_parallel();
         } else {
-            test_field = test_field.step();
+            test_field.step();
         }
     }
     let mut doc = svg::Document::new();
