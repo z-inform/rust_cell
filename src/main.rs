@@ -1,6 +1,7 @@
 use rstar::RTree;
 use rust_cell::groups::{block::Block, field::Field, group::Group, Coord};
 use svg::node::element::Rectangle;
+use clap::Parser;
 
 /// Returns a block with Lidka predecessor (29126 generations lifespan)
 fn lidka() -> Block {
@@ -32,72 +33,79 @@ fn r_pentomino() -> Block {
     block
 }
 
+#[derive(Parser)]
+struct Cli {
+    /// Enables parallel calculations
+    #[clap(short, long, action)]
+    parallel: bool,
+    
+    /// Number of threads to use
+    #[clap(short, long, value_parser, default_value_t = 8)]
+    jobs: u8,
+
+    /// Number of generations to be run
+    #[clap(short, long, value_parser, required_unless_present = "pattern")]
+    generations: Option<u32>,
+
+    /// Path to output SVG file to
+    #[clap(short, long, value_parser, value_name = "FILE", default_value_t = String::from("life.svg"))]
+    output_file: String,
+
+    /// Pattern to run. Available "lidka" and "r-pentomino". When not specified RLE is parsed 
+    /// from stdin
+    #[clap(value_parser)]
+    pattern: Option<String>,
+}
+
 fn main() {
-    let mut block;
-    let age;
-    let args: Vec<String> = std::env::args().collect();
-    let mut parallel_flag: bool = false;
-
-    if args.len() < 2 {
-        println!("Not enough arguments");
-        return;
-    }
-    if args[1] == "help" {
-        println!("{}{}{}", "Use \"r-pentomino\" or \"lidka\" to run full length of that pattern. Optionally specify generation to stop at.\n",
-                         "If no pattern name is provided, max generation is expected and RLE-formatted pattern will be read from stdin\n",
-                         "Specify \"parallel\" as first argument to run in multiple threads");
-        return;
-    }
-
-    let mut arg_count = 1;
-
-    if args[1] == "parallel" {
-        parallel_flag = true;
-        arg_count = 2;
-    }
-
-    if args[arg_count] == "r-pentomino" {
-        block = r_pentomino();
-        age = match args.get(arg_count + 1) {
-            None => 1103,
-            Some(val) => val.parse().unwrap(),
-        };
-    } else if args[arg_count] == "lidka" {
-        block = lidka();
-        age = match args.get(arg_count + 1) {
-            None => 29126,
-            Some(val) => val.parse().unwrap(),
-        };
-    } else if let Ok(val) = args[arg_count].parse() {
-        age = val;
-        println!("Enter RLE pattern");
-        let mut buf = "".to_string();
-        loop {
-            match std::io::stdin().read_line(&mut buf) {
-                Ok(0) => break,
-                _ => (),
-            }
-        }
-        block = Block::rle_import(&buf).unwrap();
-        block.resize();
-    } else {
-        println!("Incorrect arguments\n");
-        return;
-    }
+    let cli = Cli::parse();
 
     let coord = Coord { x: 0, y: 0 };
+    let mut age = 0;
 
-    let mut group = Group::new(coord, block);
+    let mut group = match &cli.pattern {
+        Some(pattern) => {
+            if pattern == "r-pentomino" {
+                age = 1103;
+                Group::new(coord, r_pentomino())
+            } else if pattern == "lidka" {
+                age = 29126;
+                Group::new(coord, lidka())
+            } else {
+                panic!("Unknown pattern specified\n");
+            }
+        }
+        None => {
+			let mut buf = "".to_string();
+				loop {
+				match std::io::stdin().read_line(&mut buf) {
+					Ok(0) => break,
+					_ => (),
+				}
+			}
+            Group::new(coord, Block::rle_import(&buf).expect("Cannot parse pattern\n"))
+        }
+    };
+
     group.reverse_y();
     let mut test_field = Field::new(RTree::new());
     test_field.field.insert(group);
+
+    age = match &cli.generations {
+        Some(val) => *val,
+        None => age,
+    };
+
+    test_field.request_parallelizm(cli.jobs);
+
     for _i in 0..age {
-        if parallel_flag {
+        if cli.parallel {
             test_field.step_parallel();
         } else {
             test_field.step();
         }
     }
+
     let mut doc = svg::Document::new();
     doc = test_field.prep_svg(doc);
     doc = test_field.svg_draw(doc);
@@ -108,5 +116,5 @@ fn main() {
         .set("width", 10)
         .set("fill", "blue");
     doc = doc.add(start);
-    svg::save("life.svg", &doc).unwrap();
+    svg::save(&cli.output_file, &doc).unwrap();
 }

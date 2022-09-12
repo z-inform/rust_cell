@@ -60,6 +60,7 @@ pub struct Field {
     pub field: RTree<Group>,
 
     children: Option<Vec<ThreadChannel>>,
+    req_child_count: Option<u8>,
 }
 
 impl Field {
@@ -68,6 +69,7 @@ impl Field {
         Field {
             field,
             children: None,
+            req_child_count: None,
         }
     }
 
@@ -274,9 +276,13 @@ impl Field {
         match &self.children {
             None => {
                 //creates threads and sets up channels on first call
-                let thread_count = match thread::available_parallelism() {
+                let mut thread_count = match thread::available_parallelism() {
                     Ok(val) => val.into(),
                     Err(_) => 1,
+                };
+                thread_count = match self.req_child_count {
+                    Some(val) => std::cmp::min(thread_count, val.into()),
+                    None => thread_count,
                 };
                 let mut channels = Vec::new();
                 for _ in 0..thread_count {
@@ -360,6 +366,12 @@ impl Field {
                 self.merge();
             }
         }
+    }
+
+    /// Requests *count* parallel threads for [Field::step_parallel()]. If system allowed thread count is
+    /// less ther requested, this value is ignored
+    pub fn request_parallelizm(&mut self, count: u8) {
+       self.req_child_count = Some(count); 
     }
 
     /// Drains **self** into [Vec]
